@@ -175,7 +175,7 @@ input,select{border-radius:8px}
 .stats-content[hidden] {
     display: none !important;
 }
-/* GIAO DIEN SANG */
+/* GIAO DIỆN SÁNG */
 :root[data-theme="light"] {
     color-scheme: light;
     --bg: #f4f6fa;
@@ -183,16 +183,47 @@ input,select{border-radius:8px}
     --ink: #1c2430;
     --muted: #657386;
     --line: #d9e0ea;
+    --warn: #fff4d6;
+
+    /* Màu ô thời khóa biểu */
+    --c1: #dbeafe;
+    --c2: #dcfce7;
+    --c3: #fef3c7;
+    --c4: #fce7f3;
+    --c5: #e0e7ff;
+    --c6: #ffedd5;
 }
 
-/* GIAO DIEN TOI */
+/* GIAO DIỆN TỐI */
 :root[data-theme="dark"] {
     color-scheme: dark;
     --bg: #10151c;
     --card: #18202b;
     --ink: #e6ebf2;
-    --muted: #9aa8ba;
-    --line: #2b3747;
+    --muted: #b0bdcc;
+    --line: #354357;
+    --warn: #4a3b12;
+
+    /* Màu ô thời khóa biểu */
+    --c1: #1e3a5f;
+    --c2: #1b4332;
+    --c3: #4a3b12;
+    --c4: #4a1d36;
+    --c5: #2b2f63;
+    --c6: #4a2a12;
+}
+
+/* Chữ trong ô thời khóa biểu */
+.ev {
+    color: var(--ink);
+    font-weight: 500;
+}
+
+/* Tăng độ rõ của ngày hiện tại */
+.week .h.today {
+    background: var(--warn);
+    color: var(--ink);
+    font-weight: 700;
 }
 
 /* Ap dung mau cho toan bo ung dung */
@@ -212,3 +243,34 @@ input, select, textarea {
     color: var(--ink);
     border-color: var(--line);
 }
+
+/* Thông báo thay đổi lịch học */
+.notice-page { display: grid; gap: 18px; }
+.notice-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.notice-heading h2 { margin:0 0 6px; }
+.notice-heading p { margin:0; }
+.notice-count { border-radius:999px; padding:7px 12px; background:var(--surface-2, #eef2f8); color:var(--muted, #64748b); font-size:13px; white-space:nowrap; }
+.notice-list { display:grid; gap:12px; }
+.notice-card { background:var(--card, #fff); border:1px solid var(--border, #e2e8f0); border-left:4px solid #94a3b8; border-radius:12px; padding:16px 18px; box-shadow:0 3px 12px rgba(15,23,42,.035); }
+.notice-card.notice-leave { border-left-color:#ef6464; }
+.notice-card.notice-makeup { border-left-color:#e6a23c; }
+.notice-card.notice-room { border-left-color:#4c83e6; }
+.notice-card.notice-general { border-left-color:#8793a5; }
+.notice-top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:9px; }
+.notice-tag { display:inline-flex; align-items:center; border-radius:999px; padding:4px 9px; background:var(--surface-2, #eef2f8); font-size:12px; font-weight:700; }
+.notice-leave .notice-tag { color:#c43d3d; background:#fff0f0; }
+.notice-makeup .notice-tag { color:#a96608; background:#fff5e5; }
+.notice-room .notice-tag { color:#2861b8; background:#edf4ff; }
+.notice-card time,.notice-card small { color:var(--muted, #64748b); font-size:12px; }
+.notice-card h3 { margin:0 0 7px; font-size:15px; }
+.notice-card p { margin:0 0 9px; line-height:1.55; }
+.notice-empty { padding:36px 18px; text-align:center; }
+@media (max-width:640px) {
+  .notice-heading { align-items:flex-start; flex-direction:column; }
+  .notice-card { padding:14px; }
+  .notice-top { align-items:flex-start; flex-direction:column; }
+}
+
+.notice-tools { display:flex; align-items:center; gap:10px; }
+.notice-card small { display:block; }
+@media (max-width:640px) { .notice-tools { width:100%; flex-wrap:wrap; } }

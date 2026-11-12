@@ -92,3 +92,17 @@ python -m unittest -v
 ## 9. Dung may chu
 
 Trong Terminal dang chay Flask, nhan `Ctrl + C` de dung may chu. De mo lai, chay `python app.py`.
+
+
+## Chức năng thông báo thay đổi lịch
+
+- Phòng Đào tạo có thể gửi thông báo nghỉ học kèm lý do cho lớp và giảng viên liên quan.
+- Phòng Đào tạo có thể tạo buổi dạy bù. Hệ thống kiểm tra trùng giảng viên, lớp và phòng trước khi lưu.
+- Phòng Đào tạo có thể đổi phòng học; hệ thống kiểm tra phòng mới trước khi cập nhật.
+- Phòng Đào tạo có thể phát hành thông báo chung.
+- Sinh viên chỉ xem thông báo của lớp mình; giảng viên chỉ xem thông báo liên quan đến mình; Phòng Đào tạo xem toàn bộ.
+- Các buổi đã có thông báo nghỉ được đánh dấu trong danh sách lịch học.
+
+Các API tương ứng: `GET /api/thong-bao`, `POST /api/tkb/<ma>/nghi-hoc`,
+`POST /api/tkb/<ma>/day-bu`, `POST /api/tkb/<ma>/doi-phong` và
+`POST /api/thong-bao/chung`.

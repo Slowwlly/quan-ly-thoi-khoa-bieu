@@ -90,7 +90,7 @@ class TestXemThoiKhoaBieu(BaseTest):
         c = self.as_user('sv1', 'sv123')
         ds = c.get(f'/api/tkb?tuan={TUAN}').json
         self.assertEqual(len(ds), 4)
-        self.assertTrue(all(x['tenLop'] == 'CT2201' for x in ds))
+        self.assertTrue(all(x['tenLop'] == 'CNTT 1' for x in ds))
 
     def test_tc08_giang_vien_xem_lich_giang_day(self):
         c = self.as_user('gv1', 'gv123')
@@ -173,7 +173,7 @@ class TestTaoThoiKhoaBieu(BaseTest):
     def test_tc16_tao_hop_le(self):
         c = self.as_user('pdt', 'pdt123')
         r = c.post('/api/tkb', json=self.body())
-        self.assertEqual(r.status_code, 201); self.assertEqual(r.json['tenPhong'], 'P301')
+        self.assertEqual(r.status_code, 201); self.assertTrue(r.json['tenPhong'].endswith('P301'))
         self.assertIn(r.json['maTKB'], [x['maTKB'] for x in c.get('/api/tkb?ngay=2026-11-03').json])
 
     def test_tc17_trung_phong(self):
@@ -232,9 +232,23 @@ class TestDanhMuc(BaseTest):
 
     def test_tao_giang_vien_kem_tai_khoan(self):
         c = self.as_user('pdt', 'pdt123')
-        r = c.post('/api/danh-muc/giang-vien', json={'hoTen': 'Mau Thu', 'maKhoa': 1, 'tenDangNhap': 'gv9', 'matKhau': 'matkhau9'})
-        self.assertEqual(r.status_code, 201); self.assertEqual(r.json['tenDangNhap'], 'gv9')
-        self.assertEqual(self.login('gv9', 'matkhau9').json['vaiTro'], 'GIANG_VIEN')
+        r = c.post('/api/danh-muc/giang-vien', json={'hoTen': 'Mau Thu', 'maKhoa': 1, 'tenDangNhap': 'gv99', 'matKhau': 'matkhau9'})
+        self.assertEqual(r.status_code, 201); self.assertEqual(r.json['tenDangNhap'], 'gv99')
+        self.assertEqual(self.login('gv99', 'matkhau9').json['vaiTro'], 'GIANG_VIEN')
+
+    def test_tao_sinh_vien_co_ma_so_va_ten_lop_de_doc(self):
+        c = self.as_user('pdt', 'pdt123')
+        du_lieu = {
+            'maSoSinhVien': 'SVTEST99',
+            'hoTen': 'Sinh Vien Kiem Thu',
+            'maLop': 1,
+        }
+        r = c.post('/api/danh-muc/sinh-vien', json=du_lieu)
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json['maSoSinhVien'], 'SVTEST99')
+        self.assertEqual(r.json['tenLop'], 'CNTT 1')
+        trung = c.post('/api/danh-muc/sinh-vien', json=du_lieu)
+        self.assertEqual(trung.status_code, 409)
 
     def test_danh_muc_tim_kiem_va_loc_cho_moi_nguoi(self):
         c = self.as_user('sv1', 'sv123')

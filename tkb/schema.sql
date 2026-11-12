@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS Khoa (
 CREATE TABLE IF NOT EXISTS Lop (
   maLop   INTEGER PRIMARY KEY AUTOINCREMENT,
   tenLop  TEXT NOT NULL UNIQUE,
+  tenHienThi TEXT,
   khoaHoc TEXT,
   maKhoa  INTEGER NOT NULL REFERENCES Khoa(maKhoa)
 );
@@ -24,12 +25,13 @@ CREATE TABLE IF NOT EXISTS GiangVien (
   maTaiKhoan  INTEGER UNIQUE REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL
 );
 CREATE TABLE IF NOT EXISTS SinhVien (
-  maSinhVien  INTEGER PRIMARY KEY AUTOINCREMENT,
-  hoTen       TEXT NOT NULL,
-  email       TEXT,
+  maSinhVien INTEGER PRIMARY KEY AUTOINCREMENT,
+  maSoSinhVien TEXT NOT NULL UNIQUE,
+  hoTen TEXT NOT NULL,
+  email TEXT,
   soDienThoai TEXT,
-  maLop       INTEGER NOT NULL REFERENCES Lop(maLop),
-  maTaiKhoan  INTEGER UNIQUE REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL
+  maLop INTEGER NOT NULL REFERENCES Lop(maLop),
+  maTaiKhoan INTEGER UNIQUE REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL
 );
 CREATE TABLE IF NOT EXISTS MonHoc (
   maMonHoc  INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,3 +59,18 @@ CREATE TABLE IF NOT EXISTS ThoiKhoaBieu (
 CREATE INDEX IF NOT EXISTS idx_tkb_ngay_gv    ON ThoiKhoaBieu(ngayHoc, maGiangVien);
 CREATE INDEX IF NOT EXISTS idx_tkb_ngay_lop   ON ThoiKhoaBieu(ngayHoc, maLop);
 CREATE INDEX IF NOT EXISTS idx_tkb_ngay_phong ON ThoiKhoaBieu(ngayHoc, maPhong);
+
+
+-- Thong bao thay doi lich hoc: nghi hoc, day bu, doi phong, thong bao chung.
+CREATE TABLE IF NOT EXISTS ThongBao (
+  maThongBao INTEGER PRIMARY KEY AUTOINCREMENT,
+  loai TEXT NOT NULL CHECK (loai IN ('NGHI','DAY_BU','DOI_PHONG','CHUNG')),
+  tieuDe TEXT NOT NULL,
+  noiDung TEXT NOT NULL,
+  maTKB INTEGER REFERENCES ThoiKhoaBieu(maTKB) ON DELETE SET NULL,
+  maLop INTEGER REFERENCES Lop(maLop) ON DELETE CASCADE,
+  maGiangVien INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE CASCADE,
+  ngayTao TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_thongbao_lop ON ThongBao(maLop, ngayTao);
+CREATE INDEX IF NOT EXISTS idx_thongbao_gv ON ThongBao(maGiangVien, ngayTao);

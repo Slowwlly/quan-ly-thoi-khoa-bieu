@@ -6,9 +6,10 @@ from ..errors import AppError, Forbidden, NotFound, Conflict
 
 SELECT = """
 SELECT t.maTKB, t.ngayHoc, t.tietBatDau, t.tietKetThuc, t.hocKy, t.namHoc,
+       EXISTS(SELECT 1 FROM ThongBao n WHERE n.maTKB=t.maTKB AND n.loai='NGHI') AS daNghi,
        t.maGiangVien, g.hoTen AS tenGiangVien,
        t.maMonHoc, m.tenMonHoc, m.soTinChi,
-       t.maLop, l.tenLop, t.maPhong, p.tenPhong
+       t.maLop, COALESCE(l.tenHienThi, l.tenLop) AS tenLop, t.maPhong, p.tenPhong
 FROM ThoiKhoaBieu t
 JOIN GiangVien g ON g.maGiangVien = t.maGiangVien
 JOIN MonHoc m    ON m.maMonHoc    = t.maMonHoc
@@ -68,8 +69,8 @@ def danh_sach(db, user, p):
     q = (p.get('q') or '').strip()
     if q:
         like = f'%{q}%'
-        where.append('(m.tenMonHoc LIKE ? OR g.hoTen LIKE ? OR l.tenLop LIKE ? OR p.tenPhong LIKE ?)')
-        args += [like] * 4
+        where.append('(m.tenMonHoc LIKE ? OR g.hoTen LIKE ? OR l.tenLop LIKE ? OR l.tenHienThi LIKE ? OR p.tenPhong LIKE ?)')
+        args += [like] * 5
     sql = SELECT + (' WHERE ' + ' AND '.join(where) if where else '') + ' ORDER BY t.ngayHoc, t.tietBatDau, t.maTKB'
     return [dict(r) for r in db.execute(sql, args).fetchall()]
 
@@ -162,7 +163,7 @@ def thong_ke(db):
                            'ON t.maGiangVien=g.maGiangVien GROUP BY g.maGiangVien ORDER BY soBuoi DESC, ten'),
         'theoPhong': q('SELECT p.tenPhong AS ten, COUNT(t.maTKB) AS soBuoi FROM PhongHoc p LEFT JOIN ThoiKhoaBieu t '
                        'ON t.maPhong=p.maPhong GROUP BY p.maPhong ORDER BY soBuoi DESC, ten'),
-        'theoLop': q('SELECT l.tenLop AS ten, COUNT(t.maTKB) AS soBuoi FROM Lop l LEFT JOIN ThoiKhoaBieu t '
+        'theoLop': q("SELECT COALESCE(l.tenHienThi, l.tenLop) AS ten, COUNT(t.maTKB) AS soBuoi FROM Lop l LEFT JOIN ThoiKhoaBieu t "
                      'ON t.maLop=l.maLop GROUP BY l.maLop ORDER BY soBuoi DESC, ten'),
         'theoKhoa': q('SELECT k.tenKhoa AS ten, COUNT(DISTINCT g.maGiangVien) AS soGiangVien '
                       'FROM Khoa k LEFT JOIN GiangVien g ON g.maKhoa=k.maKhoa '

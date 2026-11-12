@@ -123,9 +123,14 @@ def _sinh_vien(con, username, ho_ten, ma_lop):
     ma = _id(con, 'SELECT maSinhVien FROM SinhVien WHERE maTaiKhoan=?', (ma_tk,))
     if ma:
         return ma
+    ma_sv = con.execute(
+        'SELECT COALESCE(MAX(maSinhVien), 0) + 1 FROM SinhVien'
+    ).fetchone()[0]
     return con.execute(
-        'INSERT INTO SinhVien(hoTen,email,soDienThoai,maLop,maTaiKhoan) VALUES (?,?,?,?,?)',
-        (ho_ten, f'{username}@sv.dhhp.edu.vn', f'091{int(username[2:]):07d}', ma_lop, ma_tk)
+        'INSERT INTO SinhVien(maSinhVien,maSoSinhVien,hoTen,email,soDienThoai,maLop,maTaiKhoan) '
+        'VALUES (?,?,?,?,?,?,?)',
+        (ma_sv, f'SV{ma_sv:04d}', ho_ten, f'{username}@sv.dhhp.edu.vn',
+         f'091{int(username[2:]):07d}', ma_lop, ma_tk)
     ).lastrowid
 
 
@@ -270,6 +275,26 @@ def seed(path, today=None, so_tuan_truoc=2, so_tuan_sau=6):
                             (ngay, bd, kt, 'HK1', '2026-2027', gv_moi[ten_gv], mon[ten_mon],
                              lop_moi[ten_lop], ma_phong)
                         )
+
+        # Ten lop hien thi than thien; giu tenLop goc de seed va khoa ngoai khong doi.
+        ten_lop_hien_thi = {
+            'CT2201': 'CNTT 1',
+            'CT2202': 'CNTT 2',
+            'CT2301': 'CNTT 3',
+            'CT2302': 'CNTT 4',
+            'QT2201': 'QTKD 1',
+            'QTKD2301': 'QTKD 2',
+            'DL2301': 'Du lịch 1',
+            'DL2302': 'Du lịch 2',
+            'NN2301': 'Ngoại ngữ 1',
+            'DDT2301': 'Điện - Điện tử 1',
+            'DDT2302': 'Điện - Điện tử 2',
+        }
+        for ma_lop, ten_hien_thi in ten_lop_hien_thi.items():
+            con.execute(
+                'UPDATE Lop SET tenHienThi=? WHERE tenLop=?',
+                (ten_hien_thi, ma_lop)
+            )
 
         con.commit()
         return True

@@ -24,8 +24,8 @@ def create_app(config=None):
     if app.config['SEED_DEMO']:
         seed(app.config['DATABASE'], today=app.config.get('SEED_TODAY'))
 
-    from tkb.controllers import auth, danh_muc, tkb
-    for m in (auth, tkb, danh_muc):
+    from tkb.controllers import auth, danh_muc, tkb, thong_bao
+    for m in (auth, tkb, danh_muc, thong_bao):
         app.register_blueprint(m.bp)
     app.teardown_appcontext(close_db)
 

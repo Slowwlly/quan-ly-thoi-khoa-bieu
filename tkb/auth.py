@@ -17,7 +17,7 @@ def current_user():
         return None
     u = dict(tk)
     gv = db.execute('SELECT maGiangVien, hoTen FROM GiangVien WHERE maTaiKhoan=?', (ma,)).fetchone()
-    sv = db.execute('SELECT s.maSinhVien, s.hoTen, s.maLop, l.tenLop FROM SinhVien s JOIN Lop l ON l.maLop=s.maLop '
+    sv = db.execute('SELECT s.maSinhVien, s.hoTen, s.maLop, COALESCE(l.tenHienThi, l.tenLop) AS tenLop FROM SinhVien s JOIN Lop l ON l.maLop=s.maLop '
                     'WHERE s.maTaiKhoan=?', (ma,)).fetchone()
     u.update(dict(gv) if gv else {})
     u.update(dict(sv) if sv else {})
