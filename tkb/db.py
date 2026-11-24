@@ -20,57 +20,30 @@ def close_db(_exc=None):
 
 
 def init_db(path):
-    """Tao bang neu chua co va bo sung cot ma sinh vien cho CSDL cu."""
+    """Tao bang neu chua co, giu tenHienThi lop, va nang cap CSDL cu (co sao luu truoc khi nang cap)."""
+    from . import migrations
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
-    con = sqlite3.connect(path)
+    da_co_du_lieu = False
+    if os.path.exists(path):
+        c0 = sqlite3.connect(path)
+        try:
+            da_co_du_lieu = c0.execute("SELECT 1 FROM sqlite_master WHERE name='SinhVien'").fetchone() is not None \
+                and migrations.can_nang_cap(c0)
+        finally:
+            c0.close()
+    if da_co_du_lieu:
+        migrations.sao_luu(path)
+
+    con = sqlite3.connect(path, isolation_level=None)
     try:
-        con.execute('PRAGMA foreign_keys = ON')
+        con.execute('PRAGMA foreign_keys = OFF')   # can thiet khi dung lai bang
         with open(SCHEMA, encoding='utf-8') as f:
             con.executescript(f.read())
-
-        # Bo sung tenHienThi de hien ten lop de doc ma khong doi ma lop goc.
+        if migrations.can_nang_cap(con):
+            migrations.nang_cap(con)
+        # Tuong thich CSDL rat cu: cot tenHienThi / maSoSinhVien
         lop_cols = {r[1] for r in con.execute('PRAGMA table_info(Lop)')}
         if 'tenHienThi' not in lop_cols:
             con.execute('ALTER TABLE Lop ADD COLUMN tenHienThi TEXT')
-
-        ten_lop_hien_thi = {
-            'CT2201': 'CNTT 1',
-            'CT2202': 'CNTT 2',
-            'CT2301': 'CNTT 3',
-            'CT2302': 'CNTT 4',
-            'QT2201': 'QTKD 1',
-            'QTKD2301': 'QTKD 2',
-            'DL2301': 'Du lịch 1',
-            'DL2302': 'Du lịch 2',
-            'NN2301': 'Ngoại ngữ 1',
-            'DDT2301': 'Điện - Điện tử 1',
-            'DDT2302': 'Điện - Điện tử 2',
-        }
-        for ma_lop, ten_hien_thi in ten_lop_hien_thi.items():
-            con.execute(
-                'UPDATE Lop SET tenHienThi=? WHERE tenLop=? '
-                'AND (tenHienThi IS NULL OR tenHienThi = ?)',
-                (ten_hien_thi, ma_lop, '')
-            )
-
-        # Tuong thich voi CSDL cu chua co maSoSinhVien.
-        sv_cols = {r[1] for r in con.execute('PRAGMA table_info(SinhVien)')}
-        if 'maSoSinhVien' not in sv_cols:
-            con.execute('ALTER TABLE SinhVien ADD COLUMN maSoSinhVien TEXT')
-
-        # Bo sung ma cho cac sinh vien cu, khong ghi de ma da co.
-        con.execute("""
-            UPDATE SinhVien
-            SET maSoSinhVien = 'SV' || printf('%04d', maSinhVien)
-            WHERE maSoSinhVien IS NULL OR TRIM(maSoSinhVien) = ''
-        """)
-        con.execute("""
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_sinhvien_maso
-            ON SinhVien(maSoSinhVien)
-        """)
-        con.commit()
-    except Exception:
-        con.rollback()
-        raise
     finally:
         con.close()

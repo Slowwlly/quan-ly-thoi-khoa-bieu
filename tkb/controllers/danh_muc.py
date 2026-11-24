@@ -16,7 +16,7 @@ CHO_PHEP_XEM_CHUNG = {'lop', 'mon-hoc', 'phong-hoc'}
 def danh_sach(user, ten):
     if user['vaiTro'] != PHONG_DAO_TAO and ten not in CHO_PHEP_XEM_CHUNG:
         raise Forbidden()
-    return jsonify(svc.danh_sach(get_db(), ten, request.args.get('q')))
+    return jsonify(svc.danh_sach(get_db(), ten, request.args.to_dict()))
 
 
 @bp.post('/<ten>')
@@ -36,3 +36,12 @@ def sua(user, ten, ma):
 def xoa(user, ten, ma):
     svc.xoa(get_db(), ten, ma)
     return jsonify({'thongBao': 'Da xoa'})
+
+
+@bp.post('/<ten>/<int:ma>/cap-tai-khoan')
+@role_required(PHONG_DAO_TAO)
+def cap_tai_khoan(user, ten, ma):
+    if ten not in ('sinh-vien', 'giang-vien'):
+        raise Forbidden()
+    from ..services import nguoi_dung
+    return jsonify(nguoi_dung.cap_tai_khoan(get_db(), ten, ma, request.get_json(silent=True) or {}))

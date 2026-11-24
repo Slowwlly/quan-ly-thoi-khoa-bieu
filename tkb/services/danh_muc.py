@@ -3,7 +3,8 @@ import sqlite3
 
 from ..config import GIANG_VIEN, SINH_VIEN
 from ..errors import AppError, Conflict, NotFound
-from . import tai_khoan
+from . import nguoi_dung
+from ..migrations import suy_ra_nam_tuyen_sinh
 
 
 # Moi danh muc gom: ten bang, khoa chinh, truong nhap, cau SELECT hien thi,
@@ -23,10 +24,12 @@ RESOURCES = {
         truong=[
             ('tenLop', 'str', True),
             ('khoaHoc', 'str', False),
+            ('namTuyenSinh', 'int', False),
             ('maKhoa', 'int', True),
         ],
         select=(
-            'SELECT x.maLop, COALESCE(NULLIF(x.tenHienThi, \'\'), x.tenLop) AS tenLop, x.khoaHoc, x.maKhoa, k.tenKhoa '
+            'SELECT x.maLop, COALESCE(NULLIF(x.tenHienThi, \'\'), x.tenLop) AS tenLop, x.khoaHoc, x.namTuyenSinh, '
+            'x.maKhoa, k.tenKhoa '
             'FROM Lop x JOIN Khoa k ON k.maKhoa=x.maKhoa'
         ),
         tim=['x.tenLop', 'x.tenHienThi', 'k.tenKhoa'],
@@ -124,6 +127,15 @@ def _gia_tri(cfg, d):
 
 
 def danh_sach(db, ten, q=None):
+    """q co the la chuoi tim kiem hoac dict tham so (voi sinh-vien: loc/sap xep/phan trang)."""
+    p = q if isinstance(q, dict) else {'q': q}
+    q = p.get('q')
+    if ten == 'sinh-vien':
+        return nguoi_dung.danh_sach_sv(db, p)
+    if ten == 'giang-vien':
+        return nguoi_dung.danh_sach_gv(db, q)
+    if ten == 'khoa-tuyen-sinh':
+        return nguoi_dung.khoa_tuyen_sinh(db)
     cfg = cau_hinh(ten)
     sql, args = cfg['select'], []
     if q and q.strip():
@@ -156,17 +168,35 @@ def _thuc_thi(db, fn):
         raise AppError('Du lieu vi pham rang buoc')
 
 
+def _chuan_lop(d, cu=None):
+    """Lop: tu suy ra khoa tuyen sinh tu khoaHoc/ten lop neu chua nhap."""
+    if d.get('namTuyenSinh') in (None, ''):
+        nam = suy_ra_nam_tuyen_sinh(d.get('khoaHoc'), d.get('tenLop'))
+        if nam is None and cu:
+            nam = cu.get('namTuyenSinh')
+        if nam is None:
+            raise AppError('Thieu thong tin bat buoc: Khoa tuyen sinh (nam)')
+        d = {**d, 'namTuyenSinh': nam}
+    try:
+        nam = int(d['namTuyenSinh'])
+    except (TypeError, ValueError):
+        raise AppError('Khoa tuyen sinh khong hop le')
+    if not 2000 <= nam <= 2099:
+        raise AppError('Khoa tuyen sinh phai tu 2000 den 2099')
+    return d
+
+
 def tao(db, ten, d):
+    if ten == 'sinh-vien':
+        return nguoi_dung.tao_sv(db, d)
+    if ten == 'giang-vien':
+        return nguoi_dung.tao_gv(db, d)
     cfg = cau_hinh(ten)
+    if ten == 'lop':
+        d = _chuan_lop(d)
     v = _gia_tri(cfg, d)
 
     def run():
-        if 'vai_tro' in cfg and (d.get('tenDangNhap') or d.get('matKhau')):
-            ma_tk = tai_khoan.tao_tai_khoan(
-                db, d.get('tenDangNhap'), d.get('matKhau'), cfg['vai_tro']
-            )
-            v['maTaiKhoan'] = ma_tk
-
         cols = ', '.join(v)
         placeholders = ', '.join('?' for _ in v)
         cur = db.execute(
@@ -174,7 +204,6 @@ def tao(db, ten, d):
             list(v.values()),
         )
         ma = cur.lastrowid
-
         db.commit()
         return ma
 
@@ -187,10 +216,25 @@ def tao(db, ten, d):
 
 
 def sua(db, ten, ma, d):
+    if ten == 'sinh-vien':
+        return nguoi_dung.sua_sv(db, ma, d)
+    if ten == 'giang-vien':
+        return nguoi_dung.sua_gv(db, ma, d)
     cfg = cau_hinh(ten)
-    _lay_mot(db, cfg, ma)
+    cu = _lay_mot(db, cfg, ma)
+    if ten == 'lop':
+        d = _chuan_lop(d, cu)
+        if int(d['namTuyenSinh']) != cu.get('namTuyenSinh') and db.execute(
+                'SELECT 1 FROM SinhVien WHERE maLop=?', (ma,)).fetchone():
+            raise AppError('Khong the doi khoa tuyen sinh cua lop da co sinh vien (ma sinh vien gan voi khoa)')
     v = _gia_tri(cfg, d)
     sets = ', '.join(f'{k}=?' for k in v)
+    if ten == 'lop':
+        # Form chi cho sua ten hien thi: neu lop co tenHienThi thi cap nhat no, giu nguyen ma lop goc.
+        row = db.execute("SELECT tenHienThi FROM Lop WHERE maLop=?", (ma,)).fetchone()
+        if row and row['tenHienThi']:
+            v['tenHienThi'] = v.pop('tenLop')
+            sets = ', '.join(f'{k}=?' for k in v)
     try:
         _thuc_thi(
             db,
@@ -208,6 +252,10 @@ def sua(db, ten, ma, d):
 
 def xoa(db, ten, ma):
     """VR-07: tu choi xoa neu ban ghi dang duoc tham chieu."""
+    if ten == 'sinh-vien':
+        return nguoi_dung.xoa_sv(db, ma)
+    if ten == 'giang-vien':
+        return nguoi_dung.xoa_gv(db, ma)
     cfg = cau_hinh(ten)
     _lay_mot(db, cfg, ma)
     try:

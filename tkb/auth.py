@@ -11,17 +11,19 @@ def current_user():
     if not ma:
         return None
     db = get_db()
-    tk = db.execute('SELECT maTaiKhoan, tenDangNhap, vaiTro FROM TaiKhoan WHERE maTaiKhoan=?', (ma,)).fetchone()
+    tk = db.execute('SELECT maTaiKhoan, tenDangNhap, vaiTro, hoTen AS hoTenTK, phaiDoiMatKhau FROM TaiKhoan WHERE maTaiKhoan=?', (ma,)).fetchone()
     if tk is None:
         session.clear()
         return None
     u = dict(tk)
     gv = db.execute('SELECT maGiangVien, hoTen FROM GiangVien WHERE maTaiKhoan=?', (ma,)).fetchone()
-    sv = db.execute('SELECT s.maSinhVien, s.hoTen, s.maLop, COALESCE(l.tenHienThi, l.tenLop) AS tenLop FROM SinhVien s JOIN Lop l ON l.maLop=s.maLop '
+    sv = db.execute('SELECT s.maSinhVien, s.maSoSinhVien, s.hoTen, s.namTuyenSinh, s.maLop, COALESCE(l.tenHienThi, l.tenLop) AS tenLop FROM SinhVien s JOIN Lop l ON l.maLop=s.maLop '
                     'WHERE s.maTaiKhoan=?', (ma,)).fetchone()
     u.update(dict(gv) if gv else {})
     u.update(dict(sv) if sv else {})
-    u['hoTen'] = u.get('hoTen') or ('Phong dao tao' if u['vaiTro'] == 'PHONG_DAO_TAO' else u['tenDangNhap'])
+    u['hoTen'] = u.get('hoTen') or u.pop('hoTenTK', None) or ('Phong dao tao' if u['vaiTro'] == 'PHONG_DAO_TAO' else u['tenDangNhap'])
+    u.pop('hoTenTK', None)
+    u['phaiDoiMatKhau'] = bool(u['phaiDoiMatKhau'])
     return u
 
 

@@ -18,7 +18,8 @@ def dang_nhap():
     session.clear()
     session['maTaiKhoan'] = tk['maTaiKhoan']
     session.permanent = False
-    return jsonify({'thongBao': 'Dang nhap thanh cong', 'vaiTro': tk['vaiTro']})
+    return jsonify({'thongBao': 'Dang nhap thanh cong', 'vaiTro': tk['vaiTro'],
+                    'phaiDoiMatKhau': bool(tk['phaiDoiMatKhau'])})
 
 
 @bp.post('/dang-xuat')
@@ -38,5 +39,5 @@ def toi(user):
 @login_required
 def doi_mat_khau(user):
     d = _body()
-    tai_khoan.doi_mat_khau(get_db(), user['maTaiKhoan'], d.get('matKhauCu'), d.get('matKhauMoi'))
+    tai_khoan.doi_mat_khau(get_db(), user['maTaiKhoan'], d.get('matKhauCu'), d.get('matKhauMoi'), d.get('matKhauXacNhan'))
     return jsonify({'thongBao': 'Da doi mat khau'})

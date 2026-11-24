@@ -1,7 +1,7 @@
 """Ung dung web quan ly thoi khoa bieu. Chay: python app.py  →  http://127.0.0.1:5000"""
 import os
 import secrets
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, request, send_from_directory
 from tkb.db import close_db, init_db
 from tkb.errors import AppError
 from tkb.seed import seed
@@ -24,14 +24,23 @@ def create_app(config=None):
     if app.config['SEED_DEMO']:
         seed(app.config['DATABASE'], today=app.config.get('SEED_TODAY'))
 
-    from tkb.controllers import auth, danh_muc, tkb, thong_bao
-    for m in (auth, tkb, danh_muc, thong_bao):
+    from tkb.controllers import auth, danh_muc, tkb, thong_bao, nhap_excel
+    for m in (auth, tkb, danh_muc, thong_bao, nhap_excel):
         app.register_blueprint(m.bp)
     app.teardown_appcontext(close_db)
 
     @app.errorhandler(AppError)
     def loi_nghiep_vu(e):
-        return jsonify({'loi': e.message}), e.status
+        body = {'loi': e.message}
+        if getattr(e, 'goi_y', None):
+            body['goiY'] = e.goi_y
+        return jsonify(body), e.status
+
+    @app.after_request
+    def khong_luu_cache(resp):
+        if resp.mimetype == 'application/json' or request.path.startswith('/api/'):
+            resp.headers['Cache-Control'] = 'no-store'
+        return resp
 
     @app.errorhandler(404)
     def khong_thay(_e):

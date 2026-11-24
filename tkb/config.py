@@ -10,3 +10,13 @@ TIET = [  # (so tiet, gio bat dau, gio ket thuc)
 ]
 SO_TIET = len(TIET)
 MAT_KHAU_TOI_THIEU = 6
+
+# ---- Bo sung: ma sinh vien, thong bao ----
+SO_SV_TOI_DA_MOI_KHOA = 99   # ma sinh vien = 2 so nam + 2 so thu tu (01-99)
+LOAI_THONG_BAO = {
+    'CHUNG': 'Thông báo chung', 'NGHI': 'Nghỉ học', 'DAY_BU': 'Học bù',
+    'DOI_PHONG': 'Thay đổi phòng học', 'DOI_LICH': 'Thay đổi lịch học',
+    'QUAN_TRONG': 'Thông báo quan trọng',
+}
+# Doi tuong PDT duoc chon khi tao thong bao thu cong.
+DOI_TUONG_NHAP = ('TAT_CA_SV', 'TAT_CA_GV', 'LOP', 'GIANG_VIEN', 'TAT_CA')
