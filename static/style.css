@@ -336,7 +336,7 @@ code{font-size:.82rem;background:var(--bg);border:1px solid var(--line);border-r
 .notice-card .mark{margin-top:.6rem}
 .new-tag{display:inline-flex;border-radius:999px;padding:3px 8px;background:var(--brand);color:#fff;font-size:11px;font-weight:700}
 .unread-count{background:var(--brand)!important;color:#fff!important}
-.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
 .notice-actions{margin-top:.7rem;display:flex;gap:.4rem;flex-wrap:wrap}
 .status-chip{display:inline-flex;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700}
 .status-chip.sent{background:#e6f4ea;color:#1e6b34}
