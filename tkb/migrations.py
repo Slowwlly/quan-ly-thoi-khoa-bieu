@@ -11,7 +11,7 @@ import shutil
 import sqlite3
 from datetime import datetime
 
-PHIEN_BAN = 3
+PHIEN_BAN = 4
 
 
 def suy_ra_nam_tuyen_sinh(khoa_hoc, ten_lop):
@@ -60,6 +60,7 @@ def nang_cap(con, bao_cao=None):
             con.execute('ALTER TABLE SinhVien ADD COLUMN maSoSinhVien TEXT')
             con.execute("UPDATE SinhVien SET maSoSinhVien='SV'||printf('%04d', maSinhVien)")
         for bang, ten, kieu in (
+            ('ThongBao', 'senderType', "TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO'"),
             ('TaiKhoan', 'hoTen', 'TEXT'), ('TaiKhoan', 'ngaySinh', 'TEXT'),
             ('TaiKhoan', 'phaiDoiMatKhau', 'INTEGER NOT NULL DEFAULT 0'),
             ('Lop', 'namTuyenSinh', 'INTEGER'),
@@ -79,6 +80,8 @@ def nang_cap(con, bao_cao=None):
         bc['lopChuaXacDinhKhoa'] = [r[0] for r in con.execute('SELECT tenLop FROM Lop WHERE namTuyenSinh IS NULL')]
 
         _dung_lai_thong_bao(con, bc)
+        _them_cot(con, 'ThongBao', 'senderType', "TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO'")
+        con.execute("UPDATE ThongBao SET senderType='GIANG_VIEN' WHERE maNguoiGui IN (SELECT maTaiKhoan FROM TaiKhoan WHERE vaiTro='GIANG_VIEN')")
         _doi_ma_sinh_vien(con, bc)
         _rang_buoc(con)
         if phien_ban_cu == 2:
@@ -107,6 +110,7 @@ def _dung_lai_thong_bao(con, bc):
       maLop INTEGER REFERENCES Lop(maLop) ON DELETE CASCADE,
       maGiangVien INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE CASCADE,
       maNguoiGui INTEGER REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL,
+      senderType TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO' CHECK (senderType IN ('PHONG_DAO_TAO','GIANG_VIEN')),
       trangThai TEXT NOT NULL DEFAULT 'DA_GUI' CHECK (trangThai IN ('NHAP','DA_GUI')),
       ngayTao TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       thoiGianGui TEXT, ngayCapNhat TEXT,

@@ -13,9 +13,9 @@ def _buoi(db, ma):
 
 def _tao(db, loai, tieu_de, noi_dung, buoi, ma_nguoi_gui=None):
     """Thong bao tu dong cho lop + giang vien cua buoi hoc (nghi, day bu, doi phong)."""
-    db.execute("""INSERT INTO ThongBao(loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maGiangVien,maNguoiGui,
+    db.execute("""INSERT INTO ThongBao(loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maGiangVien,maNguoiGui,senderType,
                                        trangThai,thoiGianGui)
-                  VALUES (?,?,?,?,'LOP_VA_GV',?,?,?,'DA_GUI',datetime('now','localtime'))""",
+                  VALUES (?,?,?,?,'LOP_VA_GV',?,? ,?,'PHONG_DAO_TAO','DA_GUI',datetime('now','localtime'))""",
                (loai, tieu_de, noi_dung, buoi.get("maTKB"), buoi.get("maLop"), buoi.get("maGiangVien"),
                 ma_nguoi_gui))
 
@@ -24,14 +24,17 @@ NHAN_DOI_TUONG = {'TAT_CA': 'Tất cả sinh viên và giảng viên', 'TAT_CA_S
                   'TAT_CA_GV': 'Tất cả giảng viên'}
 
 SELECT = """SELECT n.maThongBao,n.loai,n.tieuDe,n.noiDung,n.doiTuong,n.trangThai,n.ngayTao,n.thoiGianGui,
-       n.ngayCapNhat,n.maTKB,n.maLop,n.maGiangVien,n.maNguoiGui,
+       n.ngayCapNhat,n.maTKB,n.maLop,n.maGiangVien,n.maNguoiGui,n.senderType, t.maMonHoc, m.tenMonHoc,
        COALESCE(NULLIF(l.tenHienThi,''), l.tenLop) AS tenLop, g.hoTen AS tenGiangVien,
-       CASE WHEN a.hoTen IS NOT NULL AND a.hoTen<>'' THEN 'Phòng Đào tạo – ' || a.hoTen ELSE 'Phòng Đào tạo' END AS nguoiGui,
+       CASE WHEN n.senderType='GIANG_VIEN' THEN COALESCE(g_sender.hoTen, a.hoTen, 'Giảng viên') ELSE COALESCE(NULLIF(a.hoTen,''),'Phòng Đào tạo') END AS nguoiGui,
        EXISTS(SELECT 1 FROM ThongBaoDaDoc d WHERE d.maThongBao=n.maThongBao AND d.maTaiKhoan=:tk) AS daDoc
        FROM ThongBao n
        LEFT JOIN Lop l ON l.maLop=n.maLop
+       LEFT JOIN ThoiKhoaBieu t ON t.maTKB=n.maTKB
+       LEFT JOIN MonHoc m ON m.maMonHoc=t.maMonHoc
        LEFT JOIN GiangVien g ON g.maGiangVien=n.maGiangVien
-       LEFT JOIN TaiKhoan a ON a.maTaiKhoan=n.maNguoiGui"""
+       LEFT JOIN TaiKhoan a ON a.maTaiKhoan=n.maNguoiGui
+       LEFT JOIN GiangVien g_sender ON g_sender.maTaiKhoan=n.maNguoiGui"""
 
 
 def _pham_vi(user, args):
@@ -40,8 +43,9 @@ def _pham_vi(user, args):
         return "1=1"
     if user["vaiTro"] == "GIANG_VIEN":
         args["gv"] = user.get("maGiangVien", -1)
-        return ("n.trangThai='DA_GUI' AND (n.doiTuong IN ('TAT_CA','TAT_CA_GV') OR "
-                "(n.doiTuong IN ('GIANG_VIEN','LOP_VA_GV') AND n.maGiangVien=:gv))")
+        args['tk'] = user['maTaiKhoan']
+        return ("((n.trangThai='DA_GUI' AND (n.doiTuong IN ('TAT_CA','TAT_CA_GV') OR " 
+                "(n.doiTuong IN ('GIANG_VIEN','LOP_VA_GV') AND n.maGiangVien=:gv))) OR n.maNguoiGui=:tk)")
     args["lop"] = user.get("maLop", -1)
     return ("n.trangThai='DA_GUI' AND (n.doiTuong IN ('TAT_CA','TAT_CA_SV') OR "
             "(n.doiTuong IN ('LOP','LOP_VA_GV') AND n.maLop=:lop))")
@@ -50,6 +54,8 @@ def _pham_vi(user, args):
 def _hoan_thien(r, user):
     r = dict(r)
     r["daDoc"] = bool(r["daDoc"])
+    r["nguonGui"] = r.get("senderType") or "PHONG_DAO_TAO"
+    r["tenNguonGui"] = "Giảng viên" if r["nguonGui"] == "GIANG_VIEN" else "Phòng Đào tạo"
     r["tenLoai"] = LOAI_THONG_BAO.get(r["loai"], r["loai"])
     dt = r["doiTuong"]
     if dt in NHAN_DOI_TUONG:
@@ -60,9 +66,8 @@ def _hoan_thien(r, user):
         r["tenDoiTuong"] = f"Giảng viên {r['tenGiangVien']}"
     else:
         r["tenDoiTuong"] = f"Lớp {r['tenLop']} và giảng viên {r['tenGiangVien']}"
-    if user["vaiTro"] != "PHONG_DAO_TAO":
-        for k in ("maNguoiGui",):
-            r.pop(k, None)
+    if user["vaiTro"] == "SINH_VIEN":
+        r.pop("maNguoiGui", None)
     return r
 
 
@@ -74,6 +79,10 @@ def danh_sach(db, user, p=None):
         if p["loai"] not in LOAI_THONG_BAO:
             raise AppError("Loai thong bao khong hop le")
         where.append("n.loai=:loai"); args["loai"] = p["loai"]
+    if p.get("senderType") in ("PHONG_DAO_TAO", "GIANG_VIEN"):
+        where.append("n.senderType=:senderType"); args["senderType"] = p["senderType"]
+    if p.get("daDoc") in ("1", "true", 1, True):
+        where.append("EXISTS(SELECT 1 FROM ThongBaoDaDoc d WHERE d.maThongBao=n.maThongBao AND d.maTaiKhoan=:tk)")
     if p.get("chuaDoc") in ("1", "true", 1, True):
         where.append("NOT EXISTS(SELECT 1 FROM ThongBaoDaDoc d WHERE d.maThongBao=n.maThongBao AND d.maTaiKhoan=:tk)")
     if p.get("trangThai") in ("NHAP", "DA_GUI") and user["vaiTro"] == "PHONG_DAO_TAO":
@@ -249,6 +258,84 @@ def thong_bao_chung(db, tieu_de, noi_dung, ma_nguoi_gui=None):
                   VALUES ('CHUNG',?,?,'TAT_CA',?,'DA_GUI',datetime('now','localtime'))""", (tieu_de, noi_dung, ma_nguoi_gui))
     db.commit()
     return {"thongBao": "Da phat hanh thong bao chung"}
+
+
+
+def lop_duoc_giang_day(db, user):
+    gv = user.get("maGiangVien")
+    if not gv:
+        raise Forbidden("Tai khoan chua lien ket voi ho so giang vien")
+    rows = db.execute("""SELECT l.maLop, COALESCE(NULLIF(l.tenHienThi,''),l.tenLop) AS tenLop,
+                                GROUP_CONCAT(DISTINCT m.tenMonHoc) AS tenMonHoc
+                         FROM ThoiKhoaBieu t JOIN Lop l ON l.maLop=t.maLop
+                         JOIN MonHoc m ON m.maMonHoc=t.maMonHoc
+                         WHERE t.maGiangVien=?
+                         GROUP BY l.maLop,l.tenLop,l.tenHienThi ORDER BY tenLop""", (gv,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def tao_cho_lop(db, user, d):
+    """GV chi tao thong bao cho lop co phan cong TKB hien tai trong DB."""
+    gv = user.get("maGiangVien")
+    if not gv:
+        raise Forbidden("Tai khoan chua lien ket voi ho so giang vien")
+    try:
+        lop = int(d.get("maLop"))
+    except (TypeError, ValueError):
+        raise AppError("Vui long chon lop")
+    mon = d.get("maMonHoc")
+    row = db.execute("""SELECT t.maTKB, l.maLop, m.maMonHoc FROM ThoiKhoaBieu t
+                        JOIN Lop l ON l.maLop=t.maLop JOIN MonHoc m ON m.maMonHoc=t.maMonHoc
+                        WHERE t.maGiangVien=? AND t.maLop=? AND (? IS NULL OR ?='' OR m.maMonHoc=?)
+                        ORDER BY t.ngayHoc DESC LIMIT 1""", (gv, lop, mon, mon, mon)).fetchone()
+    if not row:
+        raise Forbidden("Ban khong co lich giang day tai lop nay")
+    title=(d.get("tieuDe") or "").strip(); body=(d.get("noiDung") or "").strip()
+    if not title or not body:
+        raise AppError("Vui long nhap tieu de va noi dung")
+    if len(title)>200 or len(body)>5000:
+        raise AppError("Tieu de toi da 200 ky tu, noi dung toi da 5000 ky tu")
+    loai=d.get("loai") or "CHUNG"
+    if loai not in LOAI_THONG_BAO:
+        raise AppError("Loai thong bao khong hop le")
+    cur=db.execute("""INSERT INTO ThongBao(loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maNguoiGui,senderType,trangThai,thoiGianGui)
+                      VALUES (?,?,?,?,'LOP',?,?,'GIANG_VIEN','DA_GUI',datetime('now','localtime'))""",
+                   (loai,title,body,row["maTKB"],lop,user["maTaiKhoan"]))
+    db.commit()
+    return chi_tiet(db,user,cur.lastrowid)
+
+
+def sua_cua_giang_vien(db,user,ma,d):
+    old=db.execute("SELECT * FROM ThongBao WHERE maThongBao=?",(ma,)).fetchone()
+    if not old: raise NotFound("Thong bao khong ton tai")
+    if old["senderType"]!="GIANG_VIEN" or old["maNguoiGui"]!=user["maTaiKhoan"]:
+        raise Forbidden("Ban chi duoc sua thong bao do chinh minh tao")
+    # Khi sua, van phai co phan cong day lop; khong cho doi lop ngoai pham vi.
+    return _cap_nhat_thong_bao_gv(db,user,ma,d)
+
+
+def _cap_nhat_thong_bao_gv(db,user,ma,d):
+    try: lop=int(d.get("maLop"))
+    except (TypeError,ValueError): raise AppError("Vui long chon lop")
+    phan_cong = db.execute("SELECT maTKB FROM ThoiKhoaBieu WHERE maGiangVien=? AND maLop=? ORDER BY ngayHoc DESC LIMIT 1",
+                           (user.get("maGiangVien"),lop)).fetchone()
+    if not phan_cong:
+        raise Forbidden("Ban khong con duoc phan cong giang day lop nay")
+    title=(d.get("tieuDe") or "").strip(); body=(d.get("noiDung") or "").strip()
+    loai=d.get("loai") or "CHUNG"
+    if not title or not body or loai not in LOAI_THONG_BAO: raise AppError("Du lieu thong bao khong hop le")
+    db.execute("""UPDATE ThongBao SET loai=?,tieuDe=?,noiDung=?,maLop=?,maTKB=?,ngayCapNhat=datetime('now','localtime')
+                  WHERE maThongBao=? AND maNguoiGui=? AND senderType='GIANG_VIEN'""",
+               (loai,title,body,lop,phan_cong["maTKB"],ma,user["maTaiKhoan"]))
+    db.commit()
+    return chi_tiet(db,user,ma)
+
+
+def xoa_cua_giang_vien(db,user,ma):
+    cur=db.execute("DELETE FROM ThongBao WHERE maThongBao=? AND maNguoiGui=? AND senderType='GIANG_VIEN'",
+                   (ma,user["maTaiKhoan"]))
+    if not cur.rowcount: raise Forbidden("Ban khong co quyen xoa thong bao nay")
+    db.commit()
 
 
 def xoa(db, ma_thong_bao):

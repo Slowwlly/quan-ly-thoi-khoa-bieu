@@ -13,10 +13,10 @@ jobs:
 
     steps:
       - name: Checkout ma nguon
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Cai dat Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -31,4 +31,4 @@ jobs:
 
       - name: Chay kiem thu
         run: |
-          pytest -v --cov=tkb --cov=app --cov-report=term-missing
+          python -m pytest -v --cov=tkb --cov=app --cov-report=term-missing

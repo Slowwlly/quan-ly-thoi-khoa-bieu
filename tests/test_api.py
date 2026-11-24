@@ -787,3 +787,58 @@ class TestXacThucThamSo(BaseTest):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestThongBaoGiangVien(BaseTest):
+    def test_giang_vien_chi_lay_lop_co_lich_day_va_gui_duoc(self):
+        gv = self.as_user('gv1', 'gv123')
+        lop = gv.get('/api/giang-vien/thong-bao/lop-duoc-day')
+        self.assertEqual(lop.status_code, 200)
+        self.assertTrue(lop.json)
+        ma_lop = lop.json[0]['maLop']
+        r = gv.post('/api/giang-vien/thong-bao', json={
+            'maLop': ma_lop, 'tieuDe': 'Nhac lich hoc',
+            'noiDung': 'Sinh vien chuan bi bai truoc khi den lop',
+            'loai': 'CHUNG'
+        })
+        self.assertEqual(r.status_code, 201)
+        self.assertEqual(r.json['senderType'], 'GIANG_VIEN')
+        self.assertEqual(r.json['nguoiGui'], 'Nguyen Van An')
+
+    def test_giang_vien_khong_gui_duoc_cho_lop_khong_co_lich(self):
+        gv = self.as_user('gv1', 'gv123')
+        r = gv.post('/api/giang-vien/thong-bao', json={
+            'maLop': 999999, 'tieuDe': 'Thong bao',
+            'noiDung': 'Noi dung', 'loai': 'CHUNG'
+        })
+        self.assertEqual(r.status_code, 403)
+
+    def test_sinh_vien_nhan_thong_bao_giang_vien_va_loc_nguon(self):
+        gv = self.as_user('gv1', 'gv123')
+        lop = gv.get('/api/giang-vien/thong-bao/lop-duoc-day').json
+        lop_sv = self.as_user('sv1', 'sv123').get('/api/toi').json
+        # Tai khoan sv1 thuoc CNTT 1; chi gui neu GV1 duoc phan cong lop nay.
+        item = next((x for x in lop if x['maLop'] == lop_sv['maLop']), None)
+        if item is None:
+            self.skipTest('Giang vien mau khong duoc phan cong lop cua sinh vien mau')
+        gv.post('/api/giang-vien/thong-bao', json={
+            'maLop': item['maLop'], 'tieuDe': 'Thong bao lop',
+            'noiDung': 'Noi dung kiem thu', 'loai': 'CHUNG'
+        })
+        sv = self.as_user('sv1', 'sv123')
+        ds = sv.get('/api/thong-bao?senderType=GIANG_VIEN').json
+        self.assertTrue(any(x['tieuDe'] == 'Thong bao lop' and x['nguonGui'] == 'GIANG_VIEN' for x in ds))
+
+    def test_sinh_vien_khong_xem_duoc_thong_bao_lop_khac(self):
+        gv = self.as_user('gv1', 'gv123')
+        lop = gv.get('/api/giang-vien/thong-bao/lop-duoc-day').json
+        lop_sv = self.as_user('sv1', 'sv123').get('/api/toi').json['maLop']
+        khac = next((x for x in lop if x['maLop'] != lop_sv), None)
+        if khac is None:
+            self.skipTest('Khong co lop giang vien day khac lop sinh vien mau')
+        gv.post('/api/giang-vien/thong-bao', json={
+            'maLop': khac['maLop'], 'tieuDe': 'Thong bao rieng',
+            'noiDung': 'Khong danh cho lop sinh vien nay', 'loai': 'CHUNG'
+        })
+        sv = self.as_user('sv1', 'sv123')
+        self.assertFalse(any(x['tieuDe'] == 'Thong bao rieng' for x in sv.get('/api/thong-bao').json))

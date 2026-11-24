@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS ThongBao (
   maLop INTEGER REFERENCES Lop(maLop) ON DELETE CASCADE,
   maGiangVien INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE CASCADE,
   maNguoiGui INTEGER REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL,
+  senderType TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO' CHECK (senderType IN ('PHONG_DAO_TAO','GIANG_VIEN')),
   trangThai TEXT NOT NULL DEFAULT 'DA_GUI' CHECK (trangThai IN ('NHAP','DA_GUI')),
   ngayTao TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   thoiGianGui TEXT,

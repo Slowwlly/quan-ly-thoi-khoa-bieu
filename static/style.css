@@ -375,3 +375,28 @@ dialog .foot{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem}
 :root[data-theme="dark"] .notice-count{background:#263447;color:#c8d4e3}
 :root[data-theme="light"] .notice-count{background:#eef2f8;color:#52627a}
 :root[data-theme="dark"] .notice-card{background:var(--card);border-color:var(--line)}
+
+
+/* Phan biet nguon gui thong bao */
+.notice-tag.sender-pdt {
+  border: 1px solid #2563eb;
+  color: #1d4ed8;
+  background: rgba(37, 99, 235, .10);
+}
+.notice-tag.sender-teacher {
+  border: 1px solid #0f766e;
+  color: #0f766e;
+  background: rgba(13, 148, 136, .12);
+}
+[data-theme="dark"] .notice-tag.sender-pdt,
+.dark .notice-tag.sender-pdt {
+  color: #93c5fd;
+  border-color: #60a5fa;
+  background: rgba(37, 99, 235, .20);
+}
+[data-theme="dark"] .notice-tag.sender-teacher,
+.dark .notice-tag.sender-teacher {
+  color: #5eead4;
+  border-color: #2dd4bf;
+  background: rgba(13, 148, 136, .20);
+}

@@ -91,3 +91,28 @@ def day_bu(user, ma):
 def thong_bao_chung(user):
     d = _body()
     return jsonify(svc.thong_bao_chung(get_db(), d.get("tieuDe"), d.get("noiDung"), user["maTaiKhoan"]))
+
+
+@bp.get("/giang-vien/thong-bao/lop-duoc-day")
+@role_required(GIANG_VIEN)
+def lop_duoc_day(user):
+    return jsonify(svc.lop_duoc_giang_day(get_db(), user))
+
+
+@bp.post("/giang-vien/thong-bao")
+@role_required(GIANG_VIEN)
+def gv_tao_thong_bao(user):
+    return jsonify(svc.tao_cho_lop(get_db(), user, _body())), 201
+
+
+@bp.put("/giang-vien/thong-bao/<int:ma>")
+@role_required(GIANG_VIEN)
+def gv_sua_thong_bao(user, ma):
+    return jsonify(svc.sua_cua_giang_vien(get_db(), user, ma, _body()))
+
+
+@bp.delete("/giang-vien/thong-bao/<int:ma>")
+@role_required(GIANG_VIEN)
+def gv_xoa_thong_bao(user, ma):
+    svc.xoa_cua_giang_vien(get_db(), user, ma)
+    return jsonify({"thongBao": "Da xoa thong bao"})
