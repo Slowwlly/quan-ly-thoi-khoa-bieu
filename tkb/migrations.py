@@ -11,7 +11,7 @@ import shutil
 import sqlite3
 from datetime import datetime
 
-PHIEN_BAN = 4
+PHIEN_BAN = 5
 
 
 def suy_ra_nam_tuyen_sinh(khoa_hoc, ten_lop):
@@ -60,7 +60,6 @@ def nang_cap(con, bao_cao=None):
             con.execute('ALTER TABLE SinhVien ADD COLUMN maSoSinhVien TEXT')
             con.execute("UPDATE SinhVien SET maSoSinhVien='SV'||printf('%04d', maSinhVien)")
         for bang, ten, kieu in (
-            ('ThongBao', 'senderType', "TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO'"),
             ('TaiKhoan', 'hoTen', 'TEXT'), ('TaiKhoan', 'ngaySinh', 'TEXT'),
             ('TaiKhoan', 'phaiDoiMatKhau', 'INTEGER NOT NULL DEFAULT 0'),
             ('Lop', 'namTuyenSinh', 'INTEGER'),
@@ -80,12 +79,12 @@ def nang_cap(con, bao_cao=None):
         bc['lopChuaXacDinhKhoa'] = [r[0] for r in con.execute('SELECT tenLop FROM Lop WHERE namTuyenSinh IS NULL')]
 
         _dung_lai_thong_bao(con, bc)
-        _them_cot(con, 'ThongBao', 'senderType', "TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO'")
-        con.execute("UPDATE ThongBao SET senderType='GIANG_VIEN' WHERE maNguoiGui IN (SELECT maTaiKhoan FROM TaiKhoan WHERE vaiTro='GIANG_VIEN')")
         _doi_ma_sinh_vien(con, bc)
         _rang_buoc(con)
         if phien_ban_cu == 2:
             _mat_khau_quy_tac_moi(con, bc)
+        if phien_ban_cu < 5:
+            _chuan_hoa_tai_khoan_cu(con, bc)
         con.execute(f'PRAGMA user_version={PHIEN_BAN}')
         con.execute('COMMIT')
     except Exception:
@@ -95,34 +94,50 @@ def nang_cap(con, bao_cao=None):
 
 
 def _dung_lai_thong_bao(con, bc):
+    """Dua bang ThongBao ve cau truc moi nhat (sender_type, nguoi gui GV, mon hoc, them loai thong bao).
+    Giu nguyen moi thong bao cu (deu la cua Phong Dao tao) va trang thai da doc."""
     sql = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='ThongBao'").fetchone()
-    if sql and 'QUAN_TRONG' in sql[0] and 'doiTuong' in sql[0]:
+    if sql and 'sender_type' in sql[0]:
         return
+    cu = _cot(con, 'ThongBao')
+    moi = 'doiTuong' in cu    # v3 da co doiTuong/trangThai...; v1 (cu hon) thi suy ra
     # Quy trinh chuan cua SQLite: tao bang moi -> chep du lieu -> xoa bang cu -> doi ten bang moi.
     # (KHONG doi ten bang cu: SQLite se sua khoa ngoai cua ThongBaoDaDoc tro sang bang cu bi xoa.)
     con.execute("""CREATE TABLE ThongBao_moi (
       maThongBao INTEGER PRIMARY KEY AUTOINCREMENT,
-      loai TEXT NOT NULL CHECK (loai IN ('CHUNG','NGHI','DAY_BU','DOI_PHONG','DOI_LICH','QUAN_TRONG')),
+      loai TEXT NOT NULL CHECK (loai IN ('CHUNG','NGHI','DAY_BU','DOI_PHONG','DOI_LICH','QUAN_TRONG',
+            'GV_CHUNG','NHAC_LICH','DOI_NOI_DUNG','TAI_LIEU','KIEM_TRA','KHAC')),
       tieuDe TEXT NOT NULL, noiDung TEXT NOT NULL,
       maTKB INTEGER REFERENCES ThoiKhoaBieu(maTKB) ON DELETE SET NULL,
       doiTuong TEXT NOT NULL DEFAULT 'TAT_CA'
         CHECK (doiTuong IN ('TAT_CA','TAT_CA_SV','TAT_CA_GV','LOP','GIANG_VIEN','LOP_VA_GV')),
       maLop INTEGER REFERENCES Lop(maLop) ON DELETE CASCADE,
       maGiangVien INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE CASCADE,
+      sender_type TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO' CHECK (sender_type IN ('PHONG_DAO_TAO','GIANG_VIEN')),
+      maGiangVienGui INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE SET NULL,
+      tenNguoiGui TEXT,
+      maMonHoc INTEGER REFERENCES MonHoc(maMonHoc) ON DELETE SET NULL,
+      tenMonHoc TEXT,
       maNguoiGui INTEGER REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL,
-      senderType TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO' CHECK (senderType IN ('PHONG_DAO_TAO','GIANG_VIEN')),
       trangThai TEXT NOT NULL DEFAULT 'DA_GUI' CHECK (trangThai IN ('NHAP','DA_GUI')),
       ngayTao TEXT NOT NULL DEFAULT (datetime('now','localtime')),
       thoiGianGui TEXT, ngayCapNhat TEXT,
       CHECK (doiTuong NOT IN ('LOP','LOP_VA_GV') OR maLop IS NOT NULL),
-      CHECK (doiTuong NOT IN ('GIANG_VIEN','LOP_VA_GV') OR maGiangVien IS NOT NULL))""")
-    con.execute("""INSERT INTO ThongBao_moi(maThongBao,loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maGiangVien,
-                                         trangThai,ngayTao,thoiGianGui)
-        SELECT maThongBao,loai,tieuDe,noiDung,maTKB,
+      CHECK (doiTuong NOT IN ('GIANG_VIEN','LOP_VA_GV') OR maGiangVien IS NOT NULL),
+      CHECK (sender_type = 'PHONG_DAO_TAO' OR (doiTuong = 'LOP' AND maLop IS NOT NULL)))""")
+    if moi:
+        con.execute("""INSERT INTO ThongBao_moi(maThongBao,loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maGiangVien,
+                          maNguoiGui,trangThai,ngayTao,thoiGianGui,ngayCapNhat,sender_type,tenNguoiGui)
+            SELECT maThongBao,loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maGiangVien,maNguoiGui,trangThai,ngayTao,
+                   thoiGianGui,ngayCapNhat,'PHONG_DAO_TAO','Phòng Đào tạo' FROM ThongBao""")
+    else:
+        con.execute("""INSERT INTO ThongBao_moi(maThongBao,loai,tieuDe,noiDung,maTKB,doiTuong,maLop,maGiangVien,
+                          trangThai,ngayTao,thoiGianGui,sender_type,tenNguoiGui)
+            SELECT maThongBao,loai,tieuDe,noiDung,maTKB,
                CASE WHEN maLop IS NOT NULL AND maGiangVien IS NOT NULL THEN 'LOP_VA_GV'
                     WHEN maLop IS NOT NULL THEN 'LOP'
                     WHEN maGiangVien IS NOT NULL THEN 'GIANG_VIEN' ELSE 'TAT_CA' END,
-               maLop,maGiangVien,'DA_GUI',ngayTao,ngayTao FROM ThongBao""")
+               maLop,maGiangVien,'DA_GUI',ngayTao,ngayTao,'PHONG_DAO_TAO','Phòng Đào tạo' FROM ThongBao""")
     bc['thongBaoDaChuyen'] = con.execute('SELECT COUNT(*) FROM ThongBao_moi').fetchone()[0]
     con.execute('DROP TABLE ThongBao')
     con.execute('ALTER TABLE ThongBao_moi RENAME TO ThongBao')
@@ -158,6 +173,7 @@ def _doi_ma_sinh_vien(con, bc):
 
 
 def _rang_buoc(con):
+    con.execute('CREATE INDEX IF NOT EXISTS idx_thongbao_gui ON ThongBao(sender_type, maGiangVienGui)')
     con.execute('CREATE INDEX IF NOT EXISTS idx_sinhvien_nam ON SinhVien(namTuyenSinh, maSoSinhVien)')
     con.execute('CREATE INDEX IF NOT EXISTS idx_sinhvien_lop ON SinhVien(maLop)')
     con.execute('CREATE UNIQUE INDEX IF NOT EXISTS idx_sinhvien_maso ON SinhVien(maSoSinhVien)')
@@ -185,3 +201,40 @@ def _mat_khau_quy_tac_moi(con, bc):
         mk = dinh_danh.tao_mat_khau(ho_ten, ngay)
         con.execute('UPDATE TaiKhoan SET matKhau=? WHERE maTaiKhoan=?', (generate_password_hash(mk), ma))
     bc['matKhauDatLaiTheoQuyTacMoi'] = len(nguon)
+
+
+def _chuan_hoa_tai_khoan_cu(con, bc):
+    """v5: dua MOI tai khoan sinh vien / giang vien cu (sv1, gv1, svm3...) ve dung quy tac ho ten + ngay sinh,
+    bang CUNG ham voi tai khoan moi (tai_khoan.chuan_hoa_theo_quy_tac).
+    - Nguoi chua co ngay sinh duoc gan ngay sinh TAM (du lieu demo, dinh_danh.ngay_sinh_demo) - Phong Dao tao nen thay bang ngay that.
+    - Tai khoan DA dung quy tac (ten dang nhap khop) giu nguyen, ke ca mat khau nguoi dung da tu doi.
+    - Nguoi chua co tai khoan khong bi tao moi (dung nut Cap TK). Tai khoan Phong Dao tao khong bi dong toi."""
+    from .errors import AppError
+    from .services import dinh_danh, tai_khoan
+    da_doi, giu, loi, ngay_tam = 0, 0, [], []
+    nguon = (
+        ('SINH_VIEN', 'SinhVien', 'maSinhVien', 'namTuyenSinh'),
+        ('GIANG_VIEN', 'GiangVien', 'maGiangVien', 'NULL'),
+    )
+    for vai_tro, bang, pk, cot_nam in nguon:
+        for ma, ho_ten, ngay, nam, ma_tk, ten_dn in con.execute(
+                f"SELECT p.{pk}, p.hoTen, p.ngaySinh, {('p.' + cot_nam) if cot_nam != 'NULL' else 'NULL'}, p.maTaiKhoan, t.tenDangNhap "
+                f"FROM {bang} p JOIN TaiKhoan t ON t.maTaiKhoan=p.maTaiKhoan AND t.vaiTro=? ORDER BY p.{pk}", (vai_tro,)).fetchall():
+            try:
+                if not ngay:
+                    ngay = dinh_danh.ngay_sinh_demo(vai_tro, ma, nam).isoformat()
+                    con.execute(f'UPDATE {bang} SET ngaySinh=? WHERE {pk}=?', (ngay, ma))
+                    ngay_tam.append(f'{bang}:{ma}')
+                goc = dinh_danh.tao_ten_dang_nhap(ho_ten, ngay)
+                t = (ten_dn or '').lower()
+                if t == goc or (t.startswith(goc + '_') and t[len(goc) + 1:].isdigit()):
+                    giu += 1
+                    continue
+                tai_khoan.chuan_hoa_theo_quy_tac(con, ma_tk, ho_ten, ngay)
+                da_doi += 1
+            except AppError as e:
+                loi.append(f'{bang}:{ma} ({e.message})')
+    bc['taiKhoanCuDaChuanHoa'] = da_doi
+    bc['taiKhoanDaDungQuyTac'] = giu
+    bc['ngaySinhTam'] = ngay_tam
+    bc['taiKhoanLoi'] = loi

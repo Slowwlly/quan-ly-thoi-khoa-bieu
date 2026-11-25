@@ -62,3 +62,11 @@ def tao_mat_khau(ho_ten, ngay_sinh):
     if not ten:
         raise AppError('Ho ten khong hop le')
     return ten[0].upper() + ten[1:] + ddmmyyyy(parse_ngay_sinh(ngay_sinh))
+
+
+def ngay_sinh_demo(vai_tro, so, nam_tuyen_sinh=None):
+    """Ngay sinh TAM (du lieu demo) cho ban ghi cu chua co ngay sinh, de tao tai khoan theo quy tac.
+    Co dinh theo so thu tu nen seed va migration cho cung ket qua. Phong Dao tao nen thay bang ngay sinh that."""
+    so = int(so)
+    nam = (int(nam_tuyen_sinh) - 18 - so % 2) if vai_tro == 'SINH_VIEN' and nam_tuyen_sinh else 1975 + so % 18
+    return date(nam, (so * 7) % 12 + 1, (so * 11) % 28 + 1)

@@ -11,12 +11,12 @@ test_tc20_dang_xuat (tests.test_api.TestDangNhap.test_tc20_dang_xuat) ... ok
 test_ba_vai_tro_dang_nhap_bang_tai_khoan_quy_tac (tests.test_api.TestDangNhapBaVaiTro.test_ba_vai_tro_dang_nhap_bang_tai_khoan_quy_tac) ... ok
 test_dang_xuat_va_chan_trang_noi_bo (tests.test_api.TestDangNhapBaVaiTro.test_dang_xuat_va_chan_trang_noi_bo) ... ok
 test_doi_mat_khau_day_du (tests.test_api.TestDangNhapBaVaiTro.test_doi_mat_khau_day_du) ... ok
-test_khoi_dong_lai_khong_dat_lai_mat_khau (tests.test_api.TestDangNhapBaVaiTro.test_khoi_dong_lai_khong_dat_lai_mat_khau) ... ok
+test_khoi_dong_lai_khong_dat_lai_mat_khau_va_khong_nhan_doi_du_lieu (tests.test_api.TestDangNhapBaVaiTro.test_khoi_dong_lai_khong_dat_lai_mat_khau_va_khong_nhan_doi_du_lieu) ... ok
 test_khong_gui_vai_tro_van_tu_nhan_dien_va_khong_doi_duoc_vai_tro (tests.test_api.TestDangNhapBaVaiTro.test_khong_gui_vai_tro_van_tu_nhan_dien_va_khong_doi_duoc_vai_tro) ... ok
 test_mat_khau_luu_hash_va_khong_lo_ra_api (tests.test_api.TestDangNhapBaVaiTro.test_mat_khau_luu_hash_va_khong_lo_ra_api) ... ok
 test_ngay_sinh_so_0_dau (tests.test_api.TestDangNhapBaVaiTro.test_ngay_sinh_so_0_dau) ... ok
 test_sai_mat_khau_sai_quy_tac_va_tai_khoan_khong_ton_tai (tests.test_api.TestDangNhapBaVaiTro.test_sai_mat_khau_sai_quy_tac_va_tai_khoan_khong_ton_tai) ... ok
-test_tai_khoan_cu_khong_co_ngay_sinh_giu_nguyen_va_xu_ly_rieng (tests.test_api.TestDangNhapBaVaiTro.test_tai_khoan_cu_khong_co_ngay_sinh_giu_nguyen_va_xu_ly_rieng) ... ok
+test_tai_khoan_cu_da_theo_quy_tac_va_cap_lai_tai_cho_khi_doi_ngay_sinh (tests.test_api.TestDangNhapBaVaiTro.test_tai_khoan_cu_da_theo_quy_tac_va_cap_lai_tai_cho_khi_doi_ngay_sinh) ... ok
 test_tai_khoan_trung_duoc_phat_hien_khong_ghi_de (tests.test_api.TestDangNhapBaVaiTro.test_tai_khoan_trung_duoc_phat_hien_khong_ghi_de) ... ok
 test_xoa_sinh_vien_xoa_ca_tai_khoan (tests.test_api.TestDangNhapBaVaiTro.test_xoa_sinh_vien_xoa_ca_tai_khoan) ... ok
 test_crud_khoa (tests.test_api.TestDanhMuc.test_crud_khoa) ... ok
@@ -45,6 +45,10 @@ test_tc19_giang_vien_khong_xem_lich_nguoi_khac (tests.test_api.TestPhanQuyen.tes
 test_giu_so_0_dau_chu_d_va_khoang_trang_thua (tests.test_api.TestQuyTacTaiKhoan.test_giu_so_0_dau_chu_d_va_khoang_trang_thua) ... ok
 test_ngay_sinh_khong_hop_le (tests.test_api.TestQuyTacTaiKhoan.test_ngay_sinh_khong_hop_le) ... ok
 test_ten_dang_nhap_va_mat_khau_theo_vi_du (tests.test_api.TestQuyTacTaiKhoan.test_ten_dang_nhap_va_mat_khau_theo_vi_du) ... ok
+test_dang_nhap_bang_tai_khoan_cu_theo_quy_tac_va_tu_choi_mat_khau_cu (tests.test_api.TestQuyTacThongNhatTaiKhoanCu.test_dang_nhap_bang_tai_khoan_cu_theo_quy_tac_va_tu_choi_mat_khau_cu) ... ok
+test_moi_tai_khoan_sv_gv_dung_quy_tac_va_mat_khau_bam (tests.test_api.TestQuyTacThongNhatTaiKhoanCu.test_moi_tai_khoan_sv_gv_dung_quy_tac_va_mat_khau_bam) ... ok
+test_tai_khoan_cu_cung_ham_voi_tai_khoan_moi (tests.test_api.TestQuyTacThongNhatTaiKhoanCu.test_tai_khoan_cu_cung_ham_voi_tai_khoan_moi) ... ok
+test_ten_co_dau_va_chu_d_o_tai_khoan_cu (tests.test_api.TestQuyTacThongNhatTaiKhoanCu.test_ten_co_dau_va_chu_d_o_tai_khoan_cu) ... ok
 test_du_lieu_khong_hop_le (tests.test_api.TestTaoThoiKhoaBieu.test_du_lieu_khong_hop_le) ... ok
 test_lien_ke_khong_bi_coi_la_trung (tests.test_api.TestTaoThoiKhoaBieu.test_lien_ke_khong_bi_coi_la_trung) ... ok
 test_sua_khong_trung_voi_chinh_no (tests.test_api.TestTaoThoiKhoaBieu.test_sua_khong_trung_voi_chinh_no) ... ok
@@ -53,8 +57,29 @@ test_tc17_trung_phong (tests.test_api.TestTaoThoiKhoaBieu.test_tc17_trung_phong)
 test_trung_giang_vien (tests.test_api.TestTaoThoiKhoaBieu.test_trung_giang_vien) ... ok
 test_trung_lop (tests.test_api.TestTaoThoiKhoaBieu.test_trung_lop) ... ok
 test_xoa (tests.test_api.TestTaoThoiKhoaBieu.test_xoa) ... ok
+test_ban_nhap_chi_chu_so_huu_thay_va_gui_duoc (tests.test_api.TestThongBaoGiangVien.test_ban_nhap_chi_chu_so_huu_thay_va_gui_duoc) ... ok
+test_bo_loc_nguon_gui_va_trang_thai_doc (tests.test_api.TestThongBaoGiangVien.test_bo_loc_nguon_gui_va_trang_thai_doc) ... ok
+test_chi_giang_vien_lay_duoc_danh_sach_lop (tests.test_api.TestThongBaoGiangVien.test_chi_giang_vien_lay_duoc_danh_sach_lop) ... ok
+test_csdl_chan_thong_bao_giang_vien_khong_gui_cho_lop (tests.test_api.TestThongBaoGiangVien.test_csdl_chan_thong_bao_giang_vien_khong_gui_cho_lop) ... ok
+test_da_doc_luu_trong_csdl_sau_khi_dang_xuat_dang_nhap_lai (tests.test_api.TestThongBaoGiangVien.test_da_doc_luu_trong_csdl_sau_khi_dang_xuat_dang_nhap_lai) ... ok
+test_danh_sach_lop_lay_tu_thoi_khoa_bieu (tests.test_api.TestThongBaoGiangVien.test_danh_sach_lop_lay_tu_thoi_khoa_bieu) ... ok
+test_giu_ten_nguoi_gui_va_mon_hoc_tai_thoi_diem_gui (tests.test_api.TestThongBaoGiangVien.test_giu_ten_nguoi_gui_va_mon_hoc_tai_thoi_diem_gui) ... ok
+test_gv_gui_cho_lop_dang_day_sv_lop_do_nhan_duoc (tests.test_api.TestThongBaoGiangVien.test_gv_gui_cho_lop_dang_day_sv_lop_do_nhan_duoc) ... ok
+test_gv_khong_gia_mao_nguon_gui_va_loai_cua_phong_dao_tao (tests.test_api.TestThongBaoGiangVien.test_gv_khong_gia_mao_nguon_gui_va_loai_cua_phong_dao_tao) ... ok
+test_gv_khong_gui_duoc_lop_khong_day_hoac_lop_tuy_y (tests.test_api.TestThongBaoGiangVien.test_gv_khong_gui_duoc_lop_khong_day_hoac_lop_tuy_y) ... ok
+test_gv_khong_gui_toan_truong_hay_cho_giang_vien_khac (tests.test_api.TestThongBaoGiangVien.test_gv_khong_gui_toan_truong_hay_cho_giang_vien_khac) ... ok
+test_gv_khong_sua_xoa_thong_bao_cua_gv_khac (tests.test_api.TestThongBaoGiangVien.test_gv_khong_sua_xoa_thong_bao_cua_gv_khac) ... ok
+test_gv_khong_sua_xoa_thong_bao_cua_phong_dao_tao (tests.test_api.TestThongBaoGiangVien.test_gv_khong_sua_xoa_thong_bao_cua_phong_dao_tao) ... ok
+test_gv_sua_xoa_thong_bao_cua_minh (tests.test_api.TestThongBaoGiangVien.test_gv_sua_xoa_thong_bao_cua_minh) ... ok
+test_het_phan_cong_khong_gui_moi_nhung_van_xem_va_xoa_duoc (tests.test_api.TestThongBaoGiangVien.test_het_phan_cong_khong_gui_moi_nhung_van_xem_va_xoa_duoc) ... ok
+test_hop_thu_giang_vien_khong_lan_thong_bao_da_gui (tests.test_api.TestThongBaoGiangVien.test_hop_thu_giang_vien_khong_lan_thong_bao_da_gui) ... ok
+test_phong_dao_tao_quan_ly_thong_bao_toan_he_thong (tests.test_api.TestThongBaoGiangVien.test_phong_dao_tao_quan_ly_thong_bao_toan_he_thong) ... ok
+test_sinh_vien_va_khach_khong_tao_sua_xoa (tests.test_api.TestThongBaoGiangVien.test_sinh_vien_va_khach_khong_tao_sua_xoa) ... ok
+test_sv_lop_khac_khong_thay_thong_bao_rieng_cua_lop (tests.test_api.TestThongBaoGiangVien.test_sv_lop_khac_khong_thay_thong_bao_rieng_cua_lop) ... ok
+test_thong_bao_bi_khoa_sau_24_gio (tests.test_api.TestThongBaoGiangVien.test_thong_bao_bi_khoa_sau_24_gio) ... ok
+test_thong_bao_cu_cua_pdt_van_dung_nhan_phong_dao_tao (tests.test_api.TestThongBaoGiangVien.test_thong_bao_cu_cua_pdt_van_dung_nhan_phong_dao_tao) ... ok
 test_ban_nhap_chi_pdt_thay_den_khi_gui (tests.test_api.TestThongBaoPhongDaoTao.test_ban_nhap_chi_pdt_thay_den_khi_gui) ... ok
-test_chi_pdt_tao_sua_xoa (tests.test_api.TestThongBaoPhongDaoTao.test_chi_pdt_tao_sua_xoa) ... ok
+test_chi_pdt_quan_ly_thong_bao_cua_pdt (tests.test_api.TestThongBaoPhongDaoTao.test_chi_pdt_quan_ly_thong_bao_cua_pdt) ... ok
 test_da_doc_chua_doc_va_dem (tests.test_api.TestThongBaoPhongDaoTao.test_da_doc_chua_doc_va_dem) ... ok
 test_dung_doi_tuong_nhan (tests.test_api.TestThongBaoPhongDaoTao.test_dung_doi_tuong_nhan) ... ok
 test_pdt_khong_co_so_chua_doc_va_khong_danh_dau_doc (tests.test_api.TestThongBaoPhongDaoTao.test_pdt_khong_co_so_chua_doc_va_khong_danh_dau_doc) ... ok
@@ -87,11 +112,13 @@ test_chay_lai_khong_doi_gi_va_khong_sao_luu_lai (tests.test_migration.TestNangCa
 test_khoa_ngoai_da_doc_dung_va_danh_dau_doc_duoc_sau_nang_cap (tests.test_migration.TestNangCapCsdlCu.test_khoa_ngoai_da_doc_dung_va_danh_dau_doc_duoc_sau_nang_cap) ... ok
 test_ma_moi_tiep_noi_sau_nang_cap (tests.test_migration.TestNangCapCsdlCu.test_ma_moi_tiep_noi_sau_nang_cap) ... ok
 test_nang_cap_giu_du_lieu_doi_ma_va_sao_luu (tests.test_migration.TestNangCapCsdlCu.test_nang_cap_giu_du_lieu_doi_ma_va_sao_luu) ... ok
-test_tai_khoan_cu_dang_nhap_duoc_sau_nang_cap_va_seed (tests.test_migration.TestNangCapCsdlCu.test_tai_khoan_cu_dang_nhap_duoc_sau_nang_cap_va_seed) ... ok
+test_tai_khoan_cu_chuyen_sang_quy_tac_sau_nang_cap_va_seed (tests.test_migration.TestNangCapCsdlCu.test_tai_khoan_cu_chuyen_sang_quy_tac_sau_nang_cap_va_seed) ... ok
 test_thong_bao_cu_duoc_giu_va_gan_doi_tuong (tests.test_migration.TestNangCapCsdlCu.test_thong_bao_cu_duoc_giu_va_gan_doi_tuong) ... ok
 test_v2_len_v3_dat_lai_mat_khau_ban_dau_chua_doi_sang_quy_tac_moi (tests.test_migration.TestNangCapCsdlCu.test_v2_len_v3_dat_lai_mat_khau_ban_dau_chua_doi_sang_quy_tac_moi) ... ok
+test_v3_len_v4_them_nguon_gui_giu_thong_bao_va_trang_thai_doc (tests.test_migration.TestNangCapCsdlCu.test_v3_len_v4_them_nguon_gui_giu_thong_bao_va_trang_thai_doc) ... ok
+test_v4_len_v5_chuan_hoa_tai_khoan_cu_cung_ham_voi_tai_khoan_moi (tests.test_migration.TestNangCapCsdlCu.test_v4_len_v5_chuan_hoa_tai_khoan_cu_cung_ham_voi_tai_khoan_moi) ... ok
 
 ----------------------------------------------------------------------
-Ran 92 tests in 43.932s
+Ran 119 tests in 85.843s
 
 OK

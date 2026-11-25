@@ -69,3 +69,40 @@ GV `lehoangnam12051985` / `Lehoangnam12051985`; SV `nguyenvanan15032004` / `Nguy
 - Chưa có giới hạn số lần đăng nhập sai (ngoài phạm vi yêu cầu).
 - Khoa seed cũ không có dấu ("Cong nghe thong tin") nên hiện như vậy trong file xuất; sửa trong Danh mục → Khoa.
 - Tài khoản/ngày sinh của sinh viên cũ (dữ liệu demo) để trống, cần Phòng Đào tạo bổ sung.
+
+
+---
+
+## 10. Bổ sung: giảng viên gửi thông báo và phân biệt nguồn gửi (phiên bản CSDL 4)
+
+**CSDL:** bảng `ThongBao` dựng lại (giữ nguyên mọi thông báo và trạng thái đã đọc; mọi thông báo cũ → `sender_type=PHONG_DAO_TAO`):
++ `sender_type`, `maGiangVienGui`, `tenNguoiGui`, `maMonHoc`, `tenMonHoc`; thêm 6 loại thông báo của giảng viên; ràng buộc CHECK:
+thông báo của giảng viên bắt buộc `doiTuong='LOP'` có lớp. Tự động sao lưu trước khi nâng cấp.
+
+**API mới/đổi:** `GET /api/thong-bao/lop-duoc-gui` (giảng viên); `POST/PUT/DELETE /api/thong-bao...` mở cho giảng viên với kiểm tra
+quyền riêng; `GET /api/thong-bao?daGui=1` (giảng viên), `?nguon=`, `?daDoc=1`.
+
+**Quyết định cần bạn biết:** (1) "đang dạy" = có buổi học từ 30 ngày trước trở đi; (2) khóa sau 24 giờ kể từ lúc gửi;
+(3) Phòng Đào tạo chỉ xóa (không sửa) thông báo của giảng viên; (4) tên người gửi hiển thị là tên lưu lúc gửi; (5) sửa nội dung
+trong thời gian cho phép sẽ ghi "Chỉnh sửa lần cuối" (không lưu lịch sử phiên bản).
+
+**Kiểm thử:** 114 test đều đạt (`docs/ket_qua_kiem_thu.txt`), gồm 21 test thông báo giảng viên (gửi đúng/sai lớp, giả mạo nguồn gửi,
+sửa/xóa của người khác và của PĐT, khóa 24 giờ, hết phân công, bản nháp, đã đọc lưu qua đăng xuất, bộ lọc, snapshot tên) và test
+nâng cấp v3→v4. Chạy thật trên bản sao CSDL của bạn + Chromium: giảng viên tạo/sửa/xóa/gửi, sinh viên thấy nhãn và lọc đúng, theme sáng/tối.
+
+
+---
+
+## 11. Bổ sung: áp dụng quy tắc tên đăng nhập/mật khẩu cho cả tài khoản cũ (phiên bản CSDL 5)
+
+- Tên đăng nhập = họ tên thường, không dấu, không cách + ddmmyyyy; mật khẩu = giống tên đăng nhập, **chỉ viết hoa chữ cái đầu**; băm bằng
+  `generate_password_hash`, xác thực bằng `check_password_hash`.
+- **Một hàm dùng chung** `tai_khoan.thong_tin_theo_quy_tac()` cho tài khoản mới, tài khoản cũ (`chuan_hoa_theo_quy_tac`: đổi tại chỗ, giữ `maTaiKhoan`)
+  và seed; nút **Cấp TK** cũng dùng hàm này (trước đây xóa tài khoản rồi tạo lại làm mất trạng thái đã đọc).
+- **Migration tự động (có sao lưu)**: mọi tài khoản sinh viên/giảng viên cũ (`sv1`…, `gv1`…, `svm*`) chuyển sang quy tắc, bật nhắc đổi mật khẩu.
+  Tài khoản đã đúng quy tắc giữ nguyên, kể cả mật khẩu người dùng đã tự đổi. Tài khoản Phòng Đào tạo `pdt/pdt123` **không bị đổi**.
+- **Lưu ý quan trọng:** sinh viên/giảng viên cũ chưa có ngày sinh nên mình gán **ngày sinh TẠM (dữ liệu demo, cố định theo số thứ tự)** để tạo được tên đăng nhập.
+  Đây không phải ngày sinh thật; hãy cập nhật bằng ngày sinh thật rồi bấm Cấp TK. Người chưa có tài khoản (3 sinh viên cũ) không bị tạo mới.
+- Seed không còn tạo lại `sv1/gv1` cũ: nhận diện người theo (họ tên + lớp/khoa) nên khởi động lại không nhân đôi dữ liệu (đã có test).
+- Kiểm thử: **119 test đạt** (`docs/ket_qua_kiem_thu.txt`), gồm test mọi tài khoản sv/gv đúng quy tắc + mật khẩu băm, đăng nhập bằng tài khoản cũ đã đổi,
+  từ chối `sv1/sv123`, khởi động lại không nhân đôi, và migration v4→v5.

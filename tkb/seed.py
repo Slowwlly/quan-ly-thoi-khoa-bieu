@@ -116,29 +116,35 @@ def _phong(con, ten, suc_chua=45):
 
 
 def _giang_vien(con, username, ho_ten, ma_khoa):
-    ma_tk = _tai_khoan(con, username, 'gv123', 'GIANG_VIEN')
-    ma = _id(con, 'SELECT maGiangVien FROM GiangVien WHERE maTaiKhoan=?', (ma_tk,))
+    """Giang vien demo cu: nhan dien theo (ho ten, khoa) - KHONG theo ten dang nhap vi tai khoan da doi theo quy tac.
+    Tai khoan tao bang CUNG ham quy tac voi tai khoan moi (ho ten + ngay sinh)."""
+    ma = _id(con, 'SELECT maGiangVien FROM GiangVien WHERE hoTen=? AND maKhoa=?', (ho_ten, ma_khoa))
     if ma:
         return ma
+    ma = con.execute('SELECT COALESCE(MAX(maGiangVien), 0) + 1 FROM GiangVien').fetchone()[0]
+    ngay = dinh_danh.ngay_sinh_demo('GIANG_VIEN', ma).isoformat()
+    ma_tk, _ = tai_khoan.tao_theo_quy_tac(con, ho_ten, ngay, 'GIANG_VIEN', True)
     return con.execute(
-        'INSERT INTO GiangVien(hoTen,email,soDienThoai,maKhoa,maTaiKhoan) VALUES (?,?,?,?,?)',
-        (ho_ten, f'{username}@dhhp.edu.vn', f'090{int(username[2:]):07d}', ma_khoa, ma_tk)
+        'INSERT INTO GiangVien(maGiangVien,hoTen,ngaySinh,email,soDienThoai,maKhoa,maTaiKhoan) VALUES (?,?,?,?,?,?,?)',
+        (ma, ho_ten, ngay, f'{username}@dhhp.edu.vn', f'090{int(username[2:]):07d}', ma_khoa, ma_tk)
     ).lastrowid
 
 
 def _sinh_vien(con, username, ho_ten, ma_lop):
-    ma_tk = _tai_khoan(con, username, 'sv123', 'SINH_VIEN')
-    ma = _id(con, 'SELECT maSinhVien FROM SinhVien WHERE maTaiKhoan=?', (ma_tk,))
+    """Sinh vien demo cu: nhan dien theo (ho ten, lop). Ma sinh vien cap theo khoa, tai khoan theo quy tac."""
+    ma = _id(con, 'SELECT maSinhVien FROM SinhVien WHERE hoTen=? AND maLop=?', (ho_ten, ma_lop))
     if ma:
         return ma
     ma_sv = con.execute(
         'SELECT COALESCE(MAX(maSinhVien), 0) + 1 FROM SinhVien'
     ).fetchone()[0]
     nam = con.execute('SELECT namTuyenSinh FROM Lop WHERE maLop=?', (ma_lop,)).fetchone()[0]
+    ngay = dinh_danh.ngay_sinh_demo('SINH_VIEN', ma_sv, nam).isoformat()
+    ma_tk, _ = tai_khoan.tao_theo_quy_tac(con, ho_ten, ngay, 'SINH_VIEN', True)
     return con.execute(
-        'INSERT INTO SinhVien(maSinhVien,maSoSinhVien,hoTen,email,soDienThoai,namTuyenSinh,maLop,maTaiKhoan) '
-        'VALUES (?,?,?,?,?,?,?,?)',
-        (ma_sv, nguoi_dung.cap_ma_sinh_vien(con, nam), ho_ten, f'{username}@sv.dhhp.edu.vn',
+        'INSERT INTO SinhVien(maSinhVien,maSoSinhVien,hoTen,ngaySinh,email,soDienThoai,namTuyenSinh,maLop,maTaiKhoan) '
+        'VALUES (?,?,?,?,?,?,?,?,?)',
+        (ma_sv, nguoi_dung.cap_ma_sinh_vien(con, nam), ho_ten, ngay, f'{username}@sv.dhhp.edu.vn',
          f'091{int(username[2:]):07d}', nam, ma_lop, ma_tk)
     ).lastrowid
 

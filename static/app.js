@@ -145,8 +145,9 @@ const S = {
     dm: 'khoa',
     unread: 0,
     pwPrompted: false,
-    tb: { loai: '', chuaDoc: false },
-    tbq: { loai: '', trangThai: '', q: '' },
+    tb: { loai: '', chuaDoc: false, loc: '' },
+    tbq: { loai: '', trangThai: '', nguon: '', q: '' },
+    lh: { loai: '', trangThai: '' },
     sv: { q: '', nam: '', lop: '', sap: 'maso|tang', trang: 1, soDong: 25 }
 };
 
@@ -322,6 +323,10 @@ function shell() {
         );
     }
 
+    if (u.vaiTro === GV) {
+        tabs.push(['lophoc', 'Thông báo lớp học']);
+    }
+
     tabs.push(['thongbao', 'Thông báo']);
     tabs.push(['taikhoan', 'Tài khoản']);
 
@@ -399,6 +404,7 @@ function shell() {
         danhmuc: viewDanhMuc,
         thongke: viewThongKe,
         thongbao: viewThongBao,
+        lophoc: viewLopHoc,
         taikhoan: viewTaiKhoan
     };
 
@@ -1266,75 +1272,131 @@ async function viewQuanLy() {
 // ---------------- Thông báo ----------------
 
 const LOAI_TB = {
+    // Phòng Đào tạo
     CHUNG: ['Thông báo chung', 'notice-general'],
     NGHI: ['Nghỉ học', 'notice-leave'],
     DAY_BU: ['Học bù', 'notice-makeup'],
     DOI_PHONG: ['Thay đổi phòng học', 'notice-room'],
     DOI_LICH: ['Thay đổi lịch học', 'notice-schedule'],
-    QUAN_TRONG: ['Thông báo quan trọng', 'notice-important']
+    QUAN_TRONG: ['Thông báo quan trọng', 'notice-important'],
+    // Giảng viên
+    GV_CHUNG: ['Thông báo chung của giảng viên', 'notice-general'],
+    NHAC_LICH: ['Nhắc lịch học', 'notice-schedule'],
+    DOI_NOI_DUNG: ['Thay đổi nội dung buổi học', 'notice-schedule'],
+    TAI_LIEU: ['Chuẩn bị tài liệu học tập', 'notice-makeup'],
+    KIEM_TRA: ['Nhắc kiểm tra hoặc thi', 'notice-important'],
+    KHAC: ['Thông báo khác', 'notice-general']
 };
+
+const LOAI_PDT = ['CHUNG', 'NGHI', 'DAY_BU', 'DOI_PHONG', 'DOI_LICH', 'QUAN_TRONG'];
+const LOAI_GV = ['GV_CHUNG', 'NHAC_LICH', 'DOI_NOI_DUNG', 'TAI_LIEU', 'KIEM_TRA', 'NGHI', 'DAY_BU', 'KHAC'];
 
 const fmtDT = s => s ? `${s.slice(11, 16)} ${fmt(s.slice(0, 10))}` : '—';
 
-const loaiOptions = (sel, blank) =>
+const loaiOptions = (sel, blank, nhom) =>
     (blank ? `<option value="">${blank}</option>` : '') +
-    Object.entries(LOAI_TB).map(([k, [t]]) =>
-        `<option value="${k}" ${sel === k ? 'selected' : ''}>${t}</option>`).join('');
+    (nhom || Object.keys(LOAI_TB)).map(k =>
+        `<option value="${k}" ${sel === k ? 'selected' : ''}>${LOAI_TB[k][0]}</option>`).join('');
+
+// Nhãn nguồn gửi: có chữ + biểu tượng, không chỉ dựa vào màu sắc
+const nguonTag = n => n.sender_type === 'GIANG_VIEN'
+    ? '<span class="src-tag src-gv"><span aria-hidden="true">🧑‍🏫</span> GIẢNG VIÊN</span>'
+    : '<span class="src-tag src-pdt"><span aria-hidden="true">🏛️</span> PHÒNG ĐÀO TẠO</span>';
+
+const coLop = n => n.maLop && ['LOP', 'LOP_VA_GV'].includes(n.doiTuong);
+
+// Dòng thông tin: người gửi, lớp nhận, môn học liên quan
+function thongTinTb(n) {
+    return `
+        <div class="notice-info">
+            <span><b>Người gửi:</b> ${esc(n.nguoiGui)}</span>
+            ${coLop(n) ? `<span><b>Lớp:</b> ${esc(n.tenLop)}</span>` : `<span><b>Gửi đến:</b> ${esc(n.tenDoiTuong)}</span>`}
+            ${n.tenMonHoc ? `<span><b>Môn học:</b> ${esc(n.tenMonHoc)}</span>` : ''}
+        </div>`;
+}
 
 async function viewThongBao() {
     return S.user.vaiTro === PDT ? viewThongBaoPDT() : viewThongBaoNguoiDung();
 }
 
+const BO_LOC = [
+    ['', 'Tất cả thông báo'],
+    ['pdt', 'Từ Phòng Đào tạo'],
+    ['gv', 'Từ Giảng viên'],
+    ['chua', 'Chưa đọc'],
+    ['da', 'Đã đọc']
+];
+
 // ----- Sinh viên / giảng viên: chỉ xem thông báo gửi đến mình -----
 async function viewThongBaoNguoiDung() {
     const t = S.tb;
+    const sinhVien = S.user.vaiTro === SV;
     const p = new URLSearchParams();
 
     if (t.loai) p.set('loai', t.loai);
-    if (t.chuaDoc) p.set('chuaDoc', '1');
-    if (t.senderType) p.set('senderType', t.senderType);
-    if (t.daDoc) p.set('daDoc', '1');
+
+    if (sinhVien) {
+        if (t.loc === 'pdt') p.set('nguon', 'PHONG_DAO_TAO');
+        if (t.loc === 'gv') p.set('nguon', 'GIANG_VIEN');
+        if (t.loc === 'chua') p.set('chuaDoc', '1');
+        if (t.loc === 'da') p.set('daDoc', '1');
+    } else if (t.chuaDoc) {
+        p.set('chuaDoc', '1');
+    }
 
     const ds = await api('GET', '/api/thong-bao?' + p);
     const tong = ds.length;
     const chuaDoc = ds.filter(n => !n.daDoc).length;
+    const khongLoc = !t.loai && !t.loc && !t.chuaDoc;
 
-    if (!t.loai && !t.chuaDoc) {
+    if (khongLoc) {
         setUnread(chuaDoc);
     }
+
+    const trong = {
+        pdt: 'Chưa có thông báo nào từ Phòng Đào tạo.',
+        gv: 'Chưa có thông báo nào từ Giảng viên.',
+        chua: 'Bạn đã đọc hết thông báo.',
+        da: 'Bạn chưa đọc thông báo nào.'
+    };
 
     $('#main').innerHTML = `
         <section class="notice-page">
             <div class="notice-heading">
                 <div>
                     <h2>Thông báo</h2>
-                    <p class="muted">Thông báo từ Phòng Đào tạo và giảng viên gửi đến ${S.user.vaiTro === SV ? 'bạn và lớp của bạn' : 'bạn và các giảng viên'}.</p>
+                    <p class="muted">${sinhVien
+                        ? 'Thông báo từ Phòng Đào tạo và từ giảng viên dạy lớp của bạn.'
+                        : 'Thông báo từ Phòng Đào tạo gửi đến bạn.'}</p>
                 </div>
 
                 <div class="notice-tools">
                     <span class="notice-count">${tong} thông báo</span>
-                    ${S.user.vaiTro === GV ? '<button class="btn" id="newTeacherNotice">+ Tạo thông báo lớp học</button>' : ''}
                     <span class="notice-count unread-count">${chuaDoc} chưa đọc</span>
                     <button class="btn sec sm" id="readAll" ${chuaDoc ? '' : 'disabled'}>Đánh dấu tất cả đã đọc</button>
                 </div>
             </div>
 
+            ${sinhVien ? `
+                <div class="filter-chips" role="group" aria-label="Lọc thông báo">
+                    ${BO_LOC.map(([k, ten]) => `
+                        <button type="button" class="chip ${t.loc === k ? 'active' : ''}" data-loc="${k}" aria-pressed="${t.loc === k}">${ten}</button>
+                    `).join('')}
+                </div>
+            ` : ''}
+
             <div class="bar">
-                ${S.user.vaiTro === SV ? `<label>Nguồn gửi
-                    <select id="fs"><option value="">Tất cả</option>
-                    <option value="PHONG_DAO_TAO" ${t.senderType === 'PHONG_DAO_TAO' ? 'selected' : ''}>Phòng Đào tạo</option>
-                    <option value="GIANG_VIEN" ${t.senderType === 'GIANG_VIEN' ? 'selected' : ''}>Giảng viên</option></select>
-                </label>` : ''}
-                <label>Trạng thái đọc
-                    <select id="fr"><option value="">Tất cả</option>
-                    <option value="unread" ${t.chuaDoc ? 'selected' : ''}>Chưa đọc</option>
-                    <option value="read" ${t.daDoc ? 'selected' : ''}>Đã đọc</option></select>
-                </label>
                 <label>
                     Loại thông báo
                     <select id="fl">${loaiOptions(t.loai, 'Tất cả')}</select>
                 </label>
 
+                ${sinhVien ? '' : `
+                    <label class="check">
+                        <input type="checkbox" id="fu" ${t.chuaDoc ? 'checked' : ''}>
+                        Chỉ hiện chưa đọc
+                    </label>
+                `}
             </div>
 
             ${ds.length ? `<div class="notice-list">
@@ -1342,36 +1404,40 @@ async function viewThongBaoNguoiDung() {
                     const [label, cls] = LOAI_TB[n.loai] || LOAI_TB.CHUNG;
 
                     return `
-                        <article class="notice-card ${cls} ${n.daDoc ? 'read' : 'unread'}" data-id="${n.maThongBao}" tabindex="0" role="button">
+                        <article class="notice-card ${cls} ${n.sender_type === 'GIANG_VIEN' ? 'from-gv' : 'from-pdt'} ${n.daDoc ? 'read' : 'unread'}" data-id="${n.maThongBao}" tabindex="0" role="button">
                             <div class="notice-top">
                                 <span class="notice-meta">
+                                    ${nguonTag(n)}
                                     <span class="notice-tag">${label}</span>
-                                    <span class="notice-tag ${n.nguonGui === 'GIANG_VIEN' ? 'sender-teacher' : 'sender-pdt'}">${n.nguonGui === 'GIANG_VIEN' ? '♟ GIẢNG VIÊN' : '▣ PHÒNG ĐÀO TẠO'}</span>
-                                    ${n.daDoc ? '' : '<span class="new-tag">Mới</span>'}
+                                    ${n.daDoc ? '<span class="read-tag">Đã đọc</span>' : '<span class="new-tag">Mới</span>'}
                                 </span>
                                 <time>${fmtDT(n.thoiGianGui || n.ngayTao)}</time>
                             </div>
                             <h3>${esc(n.tieuDe)}</h3>
+                            ${thongTinTb(n)}
                             <p class="clamp">${esc(n.noiDung)}</p>
-                            <small>Người gửi: ${esc(n.nguoiGui)} · ${n.tenMonHoc ? `Môn: ${esc(n.tenMonHoc)} · ` : ''}Gửi đến: ${esc(n.tenDoiTuong)}</small>
                             ${n.daDoc ? '' : `<button class="btn sec sm mark" data-read="${n.maThongBao}">Đánh dấu đã đọc</button>`}
-                            ${S.user.vaiTro === GV && n.nguonGui === 'GIANG_VIEN' && n.maNguoiGui === S.user.maTaiKhoan ? `<div class="actions"><button class="btn sec sm" data-gvedit="${n.maThongBao}">Sửa</button><button class="btn danger sm" data-gvdelete="${n.maThongBao}">Xóa</button></div>` : ''}
                         </article>`;
                 }).join('')}
-            </div>` : `<div class="empty notice-empty">${t.chuaDoc ? 'Bạn đã đọc hết thông báo.' : 'Hiện chưa có thông báo nào dành cho bạn.'}</div>`}
+            </div>` : `<div class="empty notice-empty">${trong[t.loc] || (t.chuaDoc ? trong.chua : 'Hiện chưa có thông báo nào dành cho bạn.')}</div>`}
         </section>
     `;
 
-    $('#fl').onchange = e => { t.loai = e.target.value; viewThongBaoNguoiDung().catch(handle); };
-    if ($('#fs')) $('#fs').onchange = e => { t.senderType=e.target.value; viewThongBaoNguoiDung().catch(handle); };
-    $('#fr').onchange = e => { t.chuaDoc=e.target.value==='unread'; t.daDoc=e.target.value==='read'; viewThongBaoNguoiDung().catch(handle); };
-    if ($('#newTeacherNotice')) $('#newTeacherNotice').onclick = () => formThongBaoGiangVien(null, viewThongBaoNguoiDung);
+    const lamMoi = () => viewThongBaoNguoiDung().catch(handle);
+
+    $('#fl').onchange = e => { t.loai = e.target.value; lamMoi(); };
+
+    if ($('#fu')) $('#fu').onchange = e => { t.chuaDoc = e.target.checked; lamMoi(); };
+
+    document.querySelectorAll('[data-loc]').forEach(b => {
+        b.onclick = () => { t.loc = b.dataset.loc; lamMoi(); };
+    });
 
     $('#readAll').onclick = async () => {
         await api('POST', '/api/thong-bao/da-doc-tat-ca');
         setUnread(0);
         toast('Đã đánh dấu tất cả là đã đọc');
-        viewThongBaoNguoiDung().catch(handle);
+        lamMoi();
     };
 
     document.querySelectorAll('[data-read]').forEach(b => {
@@ -1382,7 +1448,7 @@ async function viewThongBaoNguoiDung() {
                 const r = await api('POST', `/api/thong-bao/${b.dataset.read}/da-doc`);
 
                 setUnread(r.soChuaDoc);
-                viewThongBaoNguoiDung().catch(handle);
+                lamMoi();
             } catch (ex) {
                 handle(ex);
             }
@@ -1390,26 +1456,32 @@ async function viewThongBaoNguoiDung() {
     });
 
     document.querySelectorAll('.notice-card[data-id]').forEach(c => {
-        const mo = () => chiTietThongBao(c.dataset.id, ds, () => viewThongBaoNguoiDung().catch(handle));
+        const mo = () => chiTietThongBao(c.dataset.id, ds, lamMoi);
 
         c.onclick = mo;
         c.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mo(); } };
     });
 }
 
-function noiDungChiTiet(n, pdt) {
+function noiDungChiTiet(n, quanLy) {
     const [label, cls] = LOAI_TB[n.loai] || LOAI_TB.CHUNG;
 
     return `
         <div class="notice-top">
-            <span class="notice-tag ${cls}">${label}</span>
-            ${pdt ? `<span class="status-chip ${n.trangThai === 'DA_GUI' ? 'sent' : 'draft'}">${n.trangThai === 'DA_GUI' ? 'Đã gửi' : 'Bản nháp'}</span>` : ''}
+            <span class="notice-meta">
+                ${nguonTag(n)}
+                <span class="notice-tag ${cls}">${label}</span>
+                ${quanLy ? `<span class="status-chip ${n.trangThai === 'DA_GUI' ? 'sent' : 'draft'}">${n.trangThai === 'DA_GUI' ? 'Đã gửi' : 'Bản nháp'}</span>` : ''}
+                ${n.daKhoa ? '<span class="status-chip draft">Đã khóa</span>' : ''}
+            </span>
         </div>
         <h2 style="margin-top:.6rem">${esc(n.tieuDe)}</h2>
         <dl class="dl">
-            <dt>Mã thông báo</dt><dd>#${n.maThongBao}</dd>
+            <dt>Nguồn gửi</dt><dd>${n.sender_type === 'GIANG_VIEN' ? 'Giảng viên' : 'Phòng Đào tạo'}</dd>
             <dt>Người gửi</dt><dd>${esc(n.nguoiGui)}</dd>
             <dt>Gửi đến</dt><dd>${esc(n.tenDoiTuong)}</dd>
+            ${n.tenMonHoc ? `<dt>Môn học liên quan</dt><dd>${esc(n.tenMonHoc)}</dd>` : ''}
+            ${quanLy ? `<dt>Mã thông báo</dt><dd>#${n.maThongBao}</dd>` : ''}
             <dt>Thời gian tạo</dt><dd>${fmtDT(n.ngayTao)}</dd>
             <dt>Thời gian gửi</dt><dd>${n.thoiGianGui ? fmtDT(n.thoiGianGui) : 'Chưa gửi'}</dd>
             ${n.ngayCapNhat ? `<dt>Chỉnh sửa lần cuối</dt><dd>${fmtDT(n.ngayCapNhat)}</dd>` : ''}
@@ -1440,123 +1512,38 @@ async function chiTietThongBao(id, ds, lamMoi) {
     } catch (ex) {
         handle(ex);
     }
-    if (S.user.vaiTro === GV) {
-        document.querySelectorAll('[data-gvedit]').forEach(b => b.onclick = e => {
-            e.stopPropagation();
-            const n=ds.find(x=>x.maThongBao==b.dataset.gvedit);
-            formThongBaoGiangVien(n, viewThongBaoNguoiDung);
-        });
-        document.querySelectorAll('[data-gvdelete]').forEach(b => b.onclick = async e => {
-            e.stopPropagation();
-            if (!confirm('Xóa thông báo này?')) return;
-            try { await api('DELETE', `/api/giang-vien/thong-bao/${b.dataset.gvdelete}`); toast('Đã xóa thông báo'); viewThongBaoNguoiDung().catch(handle); }
-            catch(ex){ handle(ex); }
-        });
-    }
 }
 
-async function formThongBaoGiangVien(n, xong) {
-    const lop = await api('GET','/api/giang-vien/thong-bao/lop-duoc-day');
-    if (!lop.length) { toast('Bạn chưa có lịch giảng dạy để gửi thông báo'); return; }
-    openDlg(`<h2>${n ? 'Sửa thông báo lớp học' : 'Tạo thông báo lớp học'}</h2>
-      <form id="gvNoticeForm" class="form" method="dialog">
-        <label>Lớp nhận thông báo<select name="maLop" required>${lop.map(x=>`<option value="${x.maLop}" ${n && n.maLop==x.maLop?'selected':''}>${esc(x.tenLop)}${x.tenMonHoc?' – '+esc(x.tenMonHoc):''}</option>`).join('')}</select></label>
-        <label>Loại thông báo<select name="loai">${loaiOptions(n?.loai||'CHUNG')}</select></label>
-        <label>Tiêu đề<input name="tieuDe" required maxlength="200" value="${esc(n?.tieuDe||'')}"></label>
-        <label>Nội dung<textarea name="noiDung" rows="6" required maxlength="5000">${esc(n?.noiDung||'')}</textarea></label>
-        <div id="gvNoticeError" class="error" hidden></div>
-        <div class="foot"><button type="button" class="btn sec" id="gvNoticeCancel">Hủy</button><button class="btn">${n?'Cập nhật':'Gửi thông báo'}</button></div>
-      </form>`);
-    $('#gvNoticeCancel').onclick=()=>$('#dlg').close();
-    $('#gvNoticeForm').onsubmit=async e=>{
-      e.preventDefault(); const d=Object.fromEntries(new FormData(e.target));
-      try { await api(n?'PUT':'POST', n?`/api/giang-vien/thong-bao/${n.maThongBao}`:'/api/giang-vien/thong-bao',d);
-        $('#dlg').close(); toast(n?'Đã cập nhật thông báo':'Đã gửi thông báo'); xong().catch(handle);
-      } catch(ex){ $('#gvNoticeError').textContent=ex.message; $('#gvNoticeError').hidden=false; }
-    };
+// Danh sách thông báo dành cho người QUẢN LÝ (Phòng Đào tạo: toàn hệ thống; giảng viên: do mình tạo)
+function theQuanLy(n) {
+    const [label, cls] = LOAI_TB[n.loai] || LOAI_TB.CHUNG;
+    const q = n.quyen || {};
+
+    return `
+        <article class="notice-card ${cls} ${n.sender_type === 'GIANG_VIEN' ? 'from-gv' : 'from-pdt'}">
+            <div class="notice-top">
+                <span class="notice-meta">
+                    ${nguonTag(n)}
+                    <span class="notice-tag">${label}</span>
+                    <span class="status-chip ${n.trangThai === 'DA_GUI' ? 'sent' : 'draft'}">${n.trangThai === 'DA_GUI' ? 'Đã gửi' : 'Bản nháp'}</span>
+                    ${n.daKhoa ? '<span class="status-chip draft" title="Đã quá 24 giờ kể từ khi gửi">Đã khóa</span>' : ''}
+                </span>
+                <time>#${n.maThongBao} · ${n.thoiGianGui ? 'Gửi ' + fmtDT(n.thoiGianGui) : 'Tạo ' + fmtDT(n.ngayTao)}</time>
+            </div>
+            <h3>${esc(n.tieuDe)}</h3>
+            ${thongTinTb(n)}
+            <p class="clamp">${esc(n.noiDung)}</p>
+            <div class="actions notice-actions">
+                <button class="btn sec sm" data-v="${n.maThongBao}">Xem</button>
+                ${q.sua ? `<button class="btn sec sm" data-e="${n.maThongBao}">Sửa</button>` : ''}
+                ${q.gui ? `<button class="btn sm" data-g="${n.maThongBao}">Gửi</button>` : ''}
+                ${q.xoa ? `<button class="btn danger sm" data-x="${n.maThongBao}">Xóa</button>` : ''}
+            </div>
+        </article>`;
 }
 
-// ----- Phòng Đào tạo: tạo, sửa, xóa, gửi thông báo -----
-async function viewThongBaoPDT() {
-    const t = S.tbq;
-    const p = new URLSearchParams();
-
-    if (t.loai) p.set('loai', t.loai);
-    if (t.trangThai) p.set('trangThai', t.trangThai);
-    if (t.q) p.set('q', t.q);
-
-    const ds = await api('GET', '/api/thong-bao?' + p);
-
-    $('#main').innerHTML = `
-        <section class="notice-page">
-            <div class="notice-heading">
-                <div>
-                    <h2>Quản lý thông báo</h2>
-                    <p class="muted">Tạo, sửa, xóa và gửi thông báo đến sinh viên, giảng viên.</p>
-                </div>
-
-                <div class="notice-tools">
-                    <span class="notice-count">${ds.length} thông báo</span>
-                    <button class="btn" id="newTb">+ Tạo thông báo</button>
-                </div>
-            </div>
-
-            <div class="bar">
-                <label>
-                    Loại thông báo
-                    <select id="fl">${loaiOptions(t.loai, 'Tất cả')}</select>
-                </label>
-
-                <label>
-                    Trạng thái
-                    <select id="ft">
-                        <option value="">Tất cả</option>
-                        <option value="DA_GUI" ${t.trangThai === 'DA_GUI' ? 'selected' : ''}>Đã gửi</option>
-                        <option value="NHAP" ${t.trangThai === 'NHAP' ? 'selected' : ''}>Bản nháp</option>
-                    </select>
-                </label>
-
-                <label>
-                    Tìm kiếm
-                    <input id="fq" type="search" placeholder="Tiêu đề, nội dung…" value="${esc(t.q)}">
-                </label>
-            </div>
-
-            ${ds.length ? `<div class="notice-list">
-                ${ds.map(n => {
-                    const [label, cls] = LOAI_TB[n.loai] || LOAI_TB.CHUNG;
-
-                    return `
-                        <article class="notice-card ${cls}">
-                            <div class="notice-top">
-                                <span class="notice-meta">
-                                    <span class="notice-tag">${label}</span>
-                                    <span class="status-chip ${n.trangThai === 'DA_GUI' ? 'sent' : 'draft'}">${n.trangThai === 'DA_GUI' ? 'Đã gửi' : 'Bản nháp'}</span>
-                                </span>
-                                <time>#${n.maThongBao} · ${n.thoiGianGui ? 'Gửi ' + fmtDT(n.thoiGianGui) : 'Tạo ' + fmtDT(n.ngayTao)}</time>
-                            </div>
-                            <h3>${esc(n.tieuDe)}</h3>
-                            <p class="clamp">${esc(n.noiDung)}</p>
-                            <small>${esc(n.nguoiGui)} · Gửi đến: ${esc(n.tenDoiTuong)}</small>
-                            <div class="actions notice-actions">
-                                <button class="btn sec sm" data-v="${n.maThongBao}">Xem</button>
-                                <button class="btn sec sm" data-e="${n.maThongBao}">Sửa</button>
-                                ${n.trangThai === 'NHAP' ? `<button class="btn sm" data-g="${n.maThongBao}">Gửi</button>` : ''}
-                                <button class="btn danger sm" data-x="${n.maThongBao}">Xóa</button>
-                            </div>
-                        </article>`;
-                }).join('')}
-            </div>` : '<div class="empty notice-empty">Chưa có thông báo nào.</div>'}
-        </section>
-    `;
-
-    const lamMoi = () => viewThongBaoPDT().catch(handle);
-
-    $('#fl').onchange = e => { t.loai = e.target.value; lamMoi(); };
-    $('#ft').onchange = e => { t.trangThai = e.target.value; lamMoi(); };
-    $('#fq').onchange = e => { t.q = e.target.value.trim(); lamMoi(); };
-    $('#newTb').onclick = () => formThongBao(null, lamMoi);
-
+// Gắn sự kiện Xem / Sửa / Gửi / Xóa cho danh sách thẻ quản lý
+function ganSuKienQuanLy(ds, formSua, lamMoi) {
     const tim = id => ds.find(x => x.maThongBao == id);
 
     document.querySelectorAll('[data-v]').forEach(b => {
@@ -1567,7 +1554,7 @@ async function viewThongBaoPDT() {
     });
 
     document.querySelectorAll('[data-e]').forEach(b => {
-        b.onclick = () => formThongBao(tim(b.dataset.e), lamMoi);
+        b.onclick = () => formSua(tim(b.dataset.e), lamMoi);
     });
 
     document.querySelectorAll('[data-g]').forEach(b => {
@@ -1599,6 +1586,78 @@ async function viewThongBaoPDT() {
     });
 }
 
+// ----- Phòng Đào tạo: tạo, sửa, xóa, gửi thông báo -----
+async function viewThongBaoPDT() {
+    const t = S.tbq;
+    const p = new URLSearchParams();
+
+    if (t.loai) p.set('loai', t.loai);
+    if (t.trangThai) p.set('trangThai', t.trangThai);
+    if (t.nguon) p.set('nguon', t.nguon);
+    if (t.q) p.set('q', t.q);
+
+    const ds = await api('GET', '/api/thong-bao?' + p);
+
+    $('#main').innerHTML = `
+        <section class="notice-page">
+            <div class="notice-heading">
+                <div>
+                    <h2>Quản lý thông báo</h2>
+                    <p class="muted">Tạo, sửa, xóa và gửi thông báo của Phòng Đào tạo; theo dõi và xóa thông báo vi phạm của giảng viên.</p>
+                </div>
+
+                <div class="notice-tools">
+                    <span class="notice-count">${ds.length} thông báo</span>
+                    <button class="btn" id="newTb">+ Tạo thông báo</button>
+                </div>
+            </div>
+
+            <div class="bar">
+                <label>
+                    Nguồn gửi
+                    <select id="fg">
+                        <option value="">Tất cả</option>
+                        <option value="PHONG_DAO_TAO" ${t.nguon === 'PHONG_DAO_TAO' ? 'selected' : ''}>Phòng Đào tạo</option>
+                        <option value="GIANG_VIEN" ${t.nguon === 'GIANG_VIEN' ? 'selected' : ''}>Giảng viên</option>
+                    </select>
+                </label>
+
+                <label>
+                    Loại thông báo
+                    <select id="fl">${loaiOptions(t.loai, 'Tất cả')}</select>
+                </label>
+
+                <label>
+                    Trạng thái
+                    <select id="ft">
+                        <option value="">Tất cả</option>
+                        <option value="DA_GUI" ${t.trangThai === 'DA_GUI' ? 'selected' : ''}>Đã gửi</option>
+                        <option value="NHAP" ${t.trangThai === 'NHAP' ? 'selected' : ''}>Bản nháp</option>
+                    </select>
+                </label>
+
+                <label>
+                    Tìm kiếm
+                    <input id="fq" type="search" placeholder="Tiêu đề, nội dung…" value="${esc(t.q)}">
+                </label>
+            </div>
+
+            ${ds.length ? `<div class="notice-list">${ds.map(theQuanLy).join('')}</div>`
+                : '<div class="empty notice-empty">Chưa có thông báo nào.</div>'}
+        </section>
+    `;
+
+    const lamMoi = () => viewThongBaoPDT().catch(handle);
+
+    $('#fg').onchange = e => { t.nguon = e.target.value; lamMoi(); };
+    $('#fl').onchange = e => { t.loai = e.target.value; lamMoi(); };
+    $('#ft').onchange = e => { t.trangThai = e.target.value; lamMoi(); };
+    $('#fq').onchange = e => { t.q = e.target.value.trim(); lamMoi(); };
+    $('#newTb').onclick = () => formThongBao(null, lamMoi);
+
+    ganSuKienQuanLy(ds, formThongBao, lamMoi);
+}
+
 async function formThongBao(n, xong) {
     await lists('lop', 'gv');
 
@@ -1625,7 +1684,7 @@ async function formThongBao(n, xong) {
             <div class="row">
                 <label>
                     Loại thông báo
-                    <select name="loai">${loaiOptions(n?.loai || 'CHUNG')}</select>
+                    <select name="loai">${loaiOptions(n?.loai || 'CHUNG', '', LOAI_PDT)}</select>
                 </label>
 
                 <label>
@@ -1700,6 +1759,172 @@ async function formThongBao(n, xong) {
 
             $('#dlg').close();
             toast(luu.trangThai === 'DA_GUI' ? 'Đã lưu và gửi thông báo' : 'Đã lưu bản nháp');
+            xong();
+        } catch (ex) {
+            if (ex.status === 401) return handle(ex);
+
+            $('#mfe').textContent = ex.message;
+            $('#mfe').hidden = false;
+            $('#save').disabled = false;
+        }
+    };
+}
+
+// ----- Giảng viên: thông báo lớp học (gửi cho lớp mình đang dạy) -----
+async function viewLopHoc() {
+    const t = S.lh;
+    const p = new URLSearchParams({ daGui: '1' });
+
+    if (t.loai) p.set('loai', t.loai);
+    if (t.trangThai) p.set('trangThai', t.trangThai);
+
+    const ds = await api('GET', '/api/thong-bao?' + p);
+
+    $('#main').innerHTML = `
+        <section class="notice-page">
+            <div class="notice-heading">
+                <div>
+                    <h2>Thông báo lớp học</h2>
+                    <p class="muted">Gửi thông báo đến sinh viên các lớp bạn đang có lịch dạy. Thông báo đã gửi chỉ sửa hoặc xóa được trong 24 giờ.</p>
+                </div>
+
+                <div class="notice-tools">
+                    <span class="notice-count">${ds.length} thông báo đã tạo</span>
+                    <button class="btn" id="newLh">+ Tạo thông báo</button>
+                </div>
+            </div>
+
+            <div class="bar">
+                <label>
+                    Loại thông báo
+                    <select id="fl">${loaiOptions(t.loai, 'Tất cả', LOAI_GV)}</select>
+                </label>
+
+                <label>
+                    Trạng thái
+                    <select id="ft">
+                        <option value="">Tất cả</option>
+                        <option value="DA_GUI" ${t.trangThai === 'DA_GUI' ? 'selected' : ''}>Đã gửi</option>
+                        <option value="NHAP" ${t.trangThai === 'NHAP' ? 'selected' : ''}>Bản nháp</option>
+                    </select>
+                </label>
+            </div>
+
+            ${ds.length ? `<div class="notice-list">${ds.map(theQuanLy).join('')}</div>`
+                : '<div class="empty notice-empty">Bạn chưa gửi thông báo nào cho lớp học.</div>'}
+        </section>
+    `;
+
+    const lamMoi = () => viewLopHoc().catch(handle);
+
+    $('#fl').onchange = e => { t.loai = e.target.value; lamMoi(); };
+    $('#ft').onchange = e => { t.trangThai = e.target.value; lamMoi(); };
+    $('#newLh').onclick = () => formLopHoc(null, lamMoi);
+
+    ganSuKienQuanLy(ds, formLopHoc, lamMoi);
+}
+
+async function formLopHoc(n, xong) {
+    // Danh sách lớp lấy từ thời khóa biểu của chính giảng viên đang đăng nhập (không tự nhập mã lớp)
+    let lop;
+
+    try {
+        lop = await api('GET', '/api/thong-bao/lop-duoc-gui');
+    } catch (ex) {
+        return handle(ex);
+    }
+
+    const daGui = n && n.trangThai === 'DA_GUI';
+
+    openDlg(`
+        <h2>${n ? 'Sửa thông báo lớp học' : 'Tạo thông báo lớp học'}</h2>
+
+        ${lop.length ? '' : '<div class="error">Bạn hiện chưa có lịch dạy lớp nào nên chưa thể gửi thông báo.</div>'}
+
+        <form id="mf" class="form" method="dialog">
+            <label>
+                Lớp nhận thông báo
+                <select name="maLop" id="lopSel" required>
+                    <option value="">— Chọn lớp bạn đang dạy —</option>
+                    ${lop.map(l => `<option value="${l.maLop}" ${n?.maLop === l.maLop ? 'selected' : ''}>${esc(l.tenLop)}${l.namTuyenSinh ? ` (khóa ${l.namTuyenSinh})` : ''}</option>`).join('')}
+                </select>
+            </label>
+
+            <div class="row">
+                <label>
+                    Môn học liên quan (nếu có)
+                    <select name="maMonHoc" id="monSel"></select>
+                </label>
+
+                <label>
+                    Loại thông báo
+                    <select name="loai">${loaiOptions(n?.loai || 'GV_CHUNG', '', LOAI_GV)}</select>
+                </label>
+            </div>
+
+            <label>
+                Tiêu đề
+                <input name="tieuDe" required maxlength="200" value="${esc(n?.tieuDe || '')}">
+            </label>
+
+            <label>
+                Nội dung
+                <textarea name="noiDung" rows="6" required maxlength="5000">${esc(n?.noiDung || '')}</textarea>
+            </label>
+
+            ${daGui ? '' : `
+                <label>
+                    Trạng thái
+                    <select name="guiNgay" id="gn">
+                        <option value="true">Gửi ngay</option>
+                        <option value="false" ${n ? 'selected' : ''}>Lưu bản nháp (chưa gửi)</option>
+                    </select>
+                </label>
+            `}
+
+            <div id="mfe" class="error" hidden></div>
+
+            <div class="foot">
+                <button type="button" class="btn sec" id="cancel">Hủy</button>
+                <button class="btn" id="save" ${lop.length ? '' : 'disabled'}>${n ? 'Cập nhật' : 'Gửi thông báo'}</button>
+            </div>
+        </form>
+    `);
+
+    const capNhatMon = () => {
+        const l = lop.find(x => String(x.maLop) === $('#lopSel').value);
+
+        $('#monSel').innerHTML = '<option value="">— Không chọn —</option>' +
+            (l ? l.monHoc.map(m => `<option value="${m.maMonHoc}" ${n?.maMonHoc === m.maMonHoc ? 'selected' : ''}>${esc(m.tenMonHoc)}</option>`).join('') : '');
+    };
+
+    $('#lopSel').onchange = () => { n = n && { ...n, maMonHoc: null }; capNhatMon(); };
+    capNhatMon();
+
+    if ($('#gn')) {
+        const nhan = () => { $('#save').textContent = $('#gn').value === 'true' ? 'Gửi thông báo' : 'Lưu bản nháp'; };
+
+        $('#gn').onchange = nhan;
+        nhan();
+    }
+
+    $('#cancel').onclick = () => $('#dlg').close();
+
+    $('#mf').onsubmit = async e => {
+        e.preventDefault();
+
+        const d = Object.fromEntries(new FormData(e.target));
+
+        if (!d.maMonHoc) delete d.maMonHoc;
+
+        $('#mfe').hidden = true;
+        $('#save').disabled = true;
+
+        try {
+            const luu = await api(n ? 'PUT' : 'POST', '/api/thong-bao' + (n ? '/' + n.maThongBao : ''), d);
+
+            $('#dlg').close();
+            toast(luu.trangThai === 'DA_GUI' ? 'Đã gửi thông báo đến lớp' : 'Đã lưu bản nháp');
             xong();
         } catch (ex) {
             if (ex.status === 401) return handle(ex);

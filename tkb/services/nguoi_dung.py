@@ -265,11 +265,17 @@ def cap_tai_khoan(db, loai, ma, d):
     _ghi(db)
     try:
         cu = db.execute(f'SELECT maTaiKhoan FROM {bang} WHERE {pk}=?', (ma,)).fetchone()['maTaiKhoan']
-        if cu:   # giai phong ten cu truoc de khong tu va cham voi chinh no
-            db.execute(f'UPDATE {bang} SET maTaiKhoan=NULL WHERE {pk}=?', (ma,))
-            db.execute('DELETE FROM TaiKhoan WHERE maTaiKhoan=? AND vaiTro=?', (cu, vai_tro))
-        ma_tk, _ = _tai_khoan_moi(db, r['hoTen'], r['ngaySinh'], vai_tro, d)
-        db.execute(f'UPDATE {bang} SET maTaiKhoan=? WHERE {pk}=?', (ma_tk, ma))
+        if cu:   # tai khoan cu: doi tai cho (giu maTaiKhoan, trang thai da doc...) bang CUNG ham voi tai khoan moi
+            ten, _, goc, n = tai_khoan.thong_tin_theo_quy_tac(db, r['hoTen'], r['ngaySinh'], bo_qua_ma_tk=cu)
+            if ten != goc and not d.get('chapNhanHauTo'):
+                e = Conflict(f'Tên đăng nhập "{goc}" đã tồn tại (trùng họ tên và ngày sinh). '
+                             f'Đề xuất dùng "{ten}" (thêm hậu tố _{n}); mật khẩu ban đầu vẫn theo quy tắc chung.')
+                e.goi_y = {'tenDangNhapDeXuat': ten, 'tenDangNhapGoc': goc}
+                raise e
+            tai_khoan.chuan_hoa_theo_quy_tac(db, cu, r['hoTen'], r['ngaySinh'])
+        else:
+            ma_tk, _ = _tai_khoan_moi(db, r['hoTen'], r['ngaySinh'], vai_tro, d)
+            db.execute(f'UPDATE {bang} SET maTaiKhoan=? WHERE {pk}=?', (ma_tk, ma))
         db.commit()
     except Exception:
         db.rollback(); raise
