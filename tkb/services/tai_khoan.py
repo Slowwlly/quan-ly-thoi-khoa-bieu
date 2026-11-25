@@ -36,25 +36,41 @@ def tao_tai_khoan(db, ten_dang_nhap, mat_khau, vai_tro, phai_doi=0, ho_ten=None,
     return cur.lastrowid
 
 
-def tao_theo_quy_tac(db, ho_ten, ngay_sinh, vai_tro, chap_nhan_hau_to=False):
-    """Tao tai khoan theo quy tac ho ten + ngay sinh. Trung ten dang nhap: KHONG ghi de.
-    Neu chua duoc dong y dung hau to thi nem Conflict kem goi y (tenDangNhapDeXuat)."""
+def thong_tin_theo_quy_tac(db, ho_ten, ngay_sinh, bo_qua_ma_tk=None):
+    """HAM DUNG CHUNG cho tai khoan moi va tai khoan cu: tinh (ten dang nhap, mat khau, ten goc, hau to).
+    Ten dang nhap = ho ten khong dau viet lien + ddmmyyyy; mat khau = giong ten dang nhap, chi viet hoa chu dau.
+    Trung ten dang nhap voi TAI KHOAN KHAC (khong tinh chinh no) thi them hau to _2, _3..."""
     ho_ten = dinh_danh.chuan_hoa_ho_ten(ho_ten)
     ngay = dinh_danh.parse_ngay_sinh(ngay_sinh)
     goc = dinh_danh.tao_ten_dang_nhap(ho_ten, ngay)
     mat_khau = dinh_danh.tao_mat_khau(ho_ten, ngay)
     ten, n = goc, 1
-    while db.execute('SELECT 1 FROM TaiKhoan WHERE lower(tenDangNhap)=lower(?)', (ten,)).fetchone():
+    while db.execute('SELECT 1 FROM TaiKhoan WHERE lower(tenDangNhap)=lower(?) AND maTaiKhoan IS NOT ?',
+                     (ten, bo_qua_ma_tk)).fetchone():
         n += 1
         ten = f'{goc}_{n}'
-    if ten != goc:
-        if not chap_nhan_hau_to:
-            e = Conflict(f'Tên đăng nhập "{goc}" đã tồn tại (trùng họ tên và ngày sinh). '
-                         f'Đề xuất dùng "{ten}" (thêm hậu tố _{n}); mật khẩu ban đầu vẫn theo quy tắc chung.')
-            e.goi_y = {'tenDangNhapDeXuat': ten, 'tenDangNhapGoc': goc}
-            raise e
-    ma = tao_tai_khoan(db, ten, mat_khau, vai_tro, phai_doi=1)
-    return ma, ten
+    return ten, mat_khau, goc, n
+
+
+def tao_theo_quy_tac(db, ho_ten, ngay_sinh, vai_tro, chap_nhan_hau_to=False):
+    """Tao tai khoan MOI theo quy tac. Trung ten dang nhap: KHONG ghi de. Neu chua duoc dong y dung hau to thi
+    nem Conflict kem goi y (tenDangNhapDeXuat)."""
+    ten, mat_khau, goc, n = thong_tin_theo_quy_tac(db, ho_ten, ngay_sinh)
+    if ten != goc and not chap_nhan_hau_to:
+        e = Conflict(f'Tên đăng nhập "{goc}" đã tồn tại (trùng họ tên và ngày sinh). '
+                     f'Đề xuất dùng "{ten}" (thêm hậu tố _{n}); mật khẩu ban đầu vẫn theo quy tắc chung.')
+        e.goi_y = {'tenDangNhapDeXuat': ten, 'tenDangNhapGoc': goc}
+        raise e
+    return tao_tai_khoan(db, ten, mat_khau, vai_tro, phai_doi=1), ten
+
+
+def chuan_hoa_theo_quy_tac(db, ma_tai_khoan, ho_ten, ngay_sinh):
+    """Dua tai khoan DA CO ve dung quy tac (cung ham tinh voi tai khoan moi): doi ten dang nhap, dat lai mat khau
+    ban dau (bam bang generate_password_hash), bat co doi mat khau. Giu nguyen maTaiKhoan nen khong mat du lieu lien quan."""
+    ten, mat_khau, _, _ = thong_tin_theo_quy_tac(db, ho_ten, ngay_sinh, bo_qua_ma_tk=ma_tai_khoan)
+    db.execute('UPDATE TaiKhoan SET tenDangNhap=?, matKhau=?, phaiDoiMatKhau=1 WHERE maTaiKhoan=?',
+               (ten, generate_password_hash(mat_khau), ma_tai_khoan))
+    return ten
 
 
 def doi_mat_khau(db, ma_tai_khoan, cu, moi, xac_nhan=None):

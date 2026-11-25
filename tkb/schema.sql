@@ -71,22 +71,28 @@ CREATE INDEX IF NOT EXISTS idx_tkb_ngay_phong ON ThoiKhoaBieu(ngayHoc, maPhong);
 -- Thong bao cua Phong dao tao (nghi, hoc bu, doi phong, doi lich, quan trong, chung).
 CREATE TABLE IF NOT EXISTS ThongBao (
   maThongBao INTEGER PRIMARY KEY AUTOINCREMENT,
-  loai TEXT NOT NULL CHECK (loai IN ('CHUNG','NGHI','DAY_BU','DOI_PHONG','DOI_LICH','QUAN_TRONG')),
+  loai TEXT NOT NULL CHECK (loai IN ('CHUNG','NGHI','DAY_BU','DOI_PHONG','DOI_LICH','QUAN_TRONG',
+        'GV_CHUNG','NHAC_LICH','DOI_NOI_DUNG','TAI_LIEU','KIEM_TRA','KHAC')),
   tieuDe TEXT NOT NULL,
   noiDung TEXT NOT NULL,
   maTKB INTEGER REFERENCES ThoiKhoaBieu(maTKB) ON DELETE SET NULL,
   doiTuong TEXT NOT NULL DEFAULT 'TAT_CA'
     CHECK (doiTuong IN ('TAT_CA','TAT_CA_SV','TAT_CA_GV','LOP','GIANG_VIEN','LOP_VA_GV')),
   maLop INTEGER REFERENCES Lop(maLop) ON DELETE CASCADE,
-  maGiangVien INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE CASCADE,
+  maGiangVien INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE CASCADE,   -- giang vien NHAN thong bao
+  sender_type TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO' CHECK (sender_type IN ('PHONG_DAO_TAO','GIANG_VIEN')),
+  maGiangVienGui INTEGER REFERENCES GiangVien(maGiangVien) ON DELETE SET NULL, -- giang vien GUI (sender_type=GIANG_VIEN)
+  tenNguoiGui TEXT,                      -- ten nguoi gui tai thoi diem gui
+  maMonHoc INTEGER REFERENCES MonHoc(maMonHoc) ON DELETE SET NULL,
+  tenMonHoc TEXT,                        -- ten mon hoc tai thoi diem gui
   maNguoiGui INTEGER REFERENCES TaiKhoan(maTaiKhoan) ON DELETE SET NULL,
-  senderType TEXT NOT NULL DEFAULT 'PHONG_DAO_TAO' CHECK (senderType IN ('PHONG_DAO_TAO','GIANG_VIEN')),
   trangThai TEXT NOT NULL DEFAULT 'DA_GUI' CHECK (trangThai IN ('NHAP','DA_GUI')),
   ngayTao TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   thoiGianGui TEXT,
   ngayCapNhat TEXT,
   CHECK (doiTuong NOT IN ('LOP','LOP_VA_GV') OR maLop IS NOT NULL),
-  CHECK (doiTuong NOT IN ('GIANG_VIEN','LOP_VA_GV') OR maGiangVien IS NOT NULL)
+  CHECK (doiTuong NOT IN ('GIANG_VIEN','LOP_VA_GV') OR maGiangVien IS NOT NULL),
+  CHECK (sender_type = 'PHONG_DAO_TAO' OR (doiTuong = 'LOP' AND maLop IS NOT NULL))   -- giang vien chi gui cho 1 lop
 );
 CREATE INDEX IF NOT EXISTS idx_thongbao_lop ON ThongBao(maLop, ngayTao);
 CREATE INDEX IF NOT EXISTS idx_thongbao_gv ON ThongBao(maGiangVien, ngayTao);

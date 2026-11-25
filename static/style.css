@@ -336,7 +336,7 @@ code{font-size:.82rem;background:var(--bg);border:1px solid var(--line);border-r
 .notice-card .mark{margin-top:.6rem}
 .new-tag{display:inline-flex;border-radius:999px;padding:3px 8px;background:var(--brand);color:#fff;font-size:11px;font-weight:700}
 .unread-count{background:var(--brand)!important;color:#fff!important}
-.clamp{display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;white-space:pre-wrap}
 .notice-actions{margin-top:.7rem;display:flex;gap:.4rem;flex-wrap:wrap}
 .status-chip{display:inline-flex;border-radius:999px;padding:3px 9px;font-size:11px;font-weight:700}
 .status-chip.sent{background:#e6f4ea;color:#1e6b34}
@@ -376,27 +376,22 @@ dialog .foot{display:flex;justify-content:flex-end;gap:.5rem;margin-top:1rem}
 :root[data-theme="light"] .notice-count{background:#eef2f8;color:#52627a}
 :root[data-theme="dark"] .notice-card{background:var(--card);border-color:var(--line)}
 
-
-/* Phan biet nguon gui thong bao */
-.notice-tag.sender-pdt {
-  border: 1px solid #2563eb;
-  color: #1d4ed8;
-  background: rgba(37, 99, 235, .10);
-}
-.notice-tag.sender-teacher {
-  border: 1px solid #0f766e;
-  color: #0f766e;
-  background: rgba(13, 148, 136, .12);
-}
-[data-theme="dark"] .notice-tag.sender-pdt,
-.dark .notice-tag.sender-pdt {
-  color: #93c5fd;
-  border-color: #60a5fa;
-  background: rgba(37, 99, 235, .20);
-}
-[data-theme="dark"] .notice-tag.sender-teacher,
-.dark .notice-tag.sender-teacher {
-  color: #5eead4;
-  border-color: #2dd4bf;
-  background: rgba(13, 148, 136, .20);
-}
+/* ===== Phan biet nguon gui thong bao: PHONG DAO TAO / GIANG VIEN (co nhan chu + bieu tuong, khong chi dua vao mau) ===== */
+.src-tag{display:inline-flex;align-items:center;gap:.3rem;border-radius:6px;padding:3px 9px;font-size:11px;font-weight:800;letter-spacing:.03em;color:#fff;white-space:nowrap}
+.src-pdt{background:#1f4e8c}
+.src-gv{background:#1a6b49}
+.notice-card.from-gv{border-left-width:5px}
+.notice-info{display:flex;flex-wrap:wrap;gap:.2rem 1rem;margin:.15rem 0 .35rem;font-size:.85rem;color:var(--muted)}
+.notice-info b{color:var(--ink);font-weight:700}
+.read-tag{display:inline-flex;border-radius:999px;padding:3px 8px;font-size:11px;font-weight:600;color:var(--muted);border:1px solid var(--line)}
+.filter-chips{display:flex;flex-wrap:wrap;gap:.45rem;margin:.2rem 0 .8rem}
+.chip{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:.4rem .85rem;font:inherit;font-size:.85rem;cursor:pointer}
+.chip:hover{border-color:var(--brand)}
+.chip.active{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+.chip:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+:root[data-theme="dark"] .src-pdt{background:#2f6fc0}
+:root[data-theme="dark"] .src-gv{background:#1f7a54}
+:root[data-theme="dark"] .notice-info b{color:#e6ebf2}
+/* the da doc: khong lam mo ca the (giu do tuong phan cua nhan nguon gui), chi giam nhan manh tieu de */
+.notice-card.read{opacity:1}
+.notice-card.read h3{font-weight:600}

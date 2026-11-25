@@ -51,10 +51,11 @@ Man hinh dang nhap chung, **khong can chon vai tro**: he thong tu nhan dien vai 
 | Giang vien (theo quy tac) | `lehoangnam12051985` | `Lehoangnam12051985` |
 | Sinh vien khoa 2024 (theo quy tac) | `nguyenvanan15032004` | `Nguyenvanan15032004` |
 
-Tai khoan cu (`pdt`, `gv1`, `sv1`...) duoc giu nguyen de khong lam mat du lieu. Tai khoan tao theo quy tac bi nhac doi mat
-khau o lan dang nhap dau. Day la tai khoan demo, khong su dung cho he thong that.
+**Moi tai khoan sinh vien va giang vien (cu va moi) theo cung quy tac ho ten + ngay sinh**; cac tai khoan demo cu `sv1`...`sv30`,
+`gv1`...`gv12`, `svm*` da duoc doi sang quy tac (khong con dang nhap bang `sv1/sv123`, `gv1/gv123`). Chi tai khoan Phong Dao tao
+`pdt/pdt123` duoc giu nguyen. Tai khoan theo quy tac bi nhac doi mat khau o lan dang nhap dau. Day la tai khoan demo.
 
-### Quy tac tai khoan (tai khoan tao moi)
+### Quy tac tai khoan (ap dung thong nhat cho tai khoan cu va moi)
 
 - **Ten dang nhap** = ho ten viet thuong, bo dau, bo khoang trang + ngay sinh `ddmmyyyy`
   (`Nguyễn Văn An`, 15/03/2004 → `nguyenvanan15032004`; giu so 0 dau ngay/thang).
@@ -62,8 +63,12 @@ khau o lan dang nhap dau. Day la tai khoan demo, khong su dung cho he thong that
   (→ `Nguyenvanan15032004`).
 - Mat khau luu dang bam (Werkzeug), khong tra ve frontend. Trung ten dang nhap: khong ghi de, bao Phong Dao tao va
   de xuat hau to `_2`, `_3`... (chi doi ten dang nhap, mat khau van theo quy tac) - Phong Dao tao dong y moi tao.
-- Nguoi dung cu chua co ngay sinh: tai khoan giu nguyen; Phong Dao tao bo sung ngay sinh roi bam **Cap TK** neu muon chuyen
-  sang tai khoan theo quy tac (co hoi xac nhan vi mat khau se duoc dat lai).
+- **Mot ham duy nhat** (`tai_khoan.thong_tin_theo_quy_tac`) tinh ten dang nhap + mat khau cho tai khoan moi (`tao_theo_quy_tac`),
+  tai khoan cu (`chuan_hoa_theo_quy_tac`, doi tai cho, giu `maTaiKhoan`) va seed du lieu mau - khong co hai cach tinh khac nhau.
+- Nang cap CSDL (phien ban 5) tu dong doi moi tai khoan sinh vien/giang vien cu sang quy tac (co sao luu truoc). Ban ghi cu chua co
+  ngay sinh duoc gan **ngay sinh tam (du lieu demo)** de tao ten dang nhap - Phong Dao tao nen thay bang ngay sinh that
+  (Danh muc -> Sua), roi bam **Cap TK** de dua ten dang nhap/mat khau ve ngay sinh that (co hoi xac nhan vi mat khau duoc dat lai).
+  Tai khoan da dung quy tac giu nguyen, ke ca mat khau nguoi dung da tu doi. Nguoi chua co tai khoan khong bi tao moi (dung **Cap TK**).
 
 ### Quy tac ma sinh vien
 
@@ -85,9 +90,7 @@ Lan chay tiep theo, ung dung tu dong bo sung du lieu demo con thieu va khong xoa
 
 Cac lop moi gom `CT2301`, `CT2302`, `QTKD2301`, `DL2301`, `DL2302`, `NN2301`, `DDT2301`, `DDT2302`.
 
-Tai khoan moi:
-- Giang vien: `gv5` den `gv12`, mat khau `gv123`.
-- Sinh vien: `sv7` den `sv30`, mat khau `sv123`.
+Tai khoan moi: giang vien va sinh vien demo cu nay cung dung quy tac ho ten + ngay sinh (xem muc 4); khong con `gv5`...`sv30` / `gv123` / `sv123`.
 
 Bo sung (chi tao mot lan): 4 khoa tuyen sinh 2024, 2025, 2026, 2027, moi khoa 9 lop (CNTT 1-4, QTKD 1-2, Du lich 1,
 Ngoai ngu 1, Dien - Dien tu 1) va 49 sinh vien (ma 2401-2449, 2501-2549, 2601-2649, 2701-2749), 12 giang vien moi,
@@ -156,3 +159,21 @@ Các API tương ứng: `GET /api/thong-bao`, `POST /api/tkb/<ma>/nghi-hoc`,
 
 Nút **Nhập từ Excel** ở Danh mục và Quản lý TKB (có file mẫu). Sinh viên: cột Họ tên, Ngày sinh, Lớp (mã sinh viên và
 tài khoản được hệ thống tự tạo).
+
+
+## Giảng viên gửi thông báo cho lớp mình dạy
+
+Tích hợp vào **cùng bảng `ThongBao`** của Phòng Đào tạo (không có hệ thống riêng), phân biệt bằng cột `sender_type`
+(`PHONG_DAO_TAO` / `GIANG_VIEN`), `maGiangVienGui`, `tenNguoiGui` và `tenMonHoc` (lưu tên tại thời điểm gửi).
+
+- Tab **Thông báo lớp học** (giảng viên): tạo, xem, sửa, xóa, gửi bản nháp. Danh sách lớp lấy từ thời khóa biểu của chính
+  giảng viên qua `GET /api/thong-bao/lop-duoc-gui` (lớp có buổi dạy từ 30 ngày trước trở đi); backend kiểm tra lại ở mọi API.
+- Giảng viên **không** gửi được: lớp không dạy, toàn trường, giảng viên khác; không sửa/xóa thông báo của người khác hoặc của
+  Phòng Đào tạo. Nguồn gửi luôn lấy từ phiên đăng nhập, không nhận từ client. Loại thông báo: chung của GV, nhắc lịch học,
+  thay đổi nội dung buổi học, chuẩn bị tài liệu, nhắc kiểm tra/thi, nghỉ buổi học, học bù, khác.
+- Khóa: thông báo đã gửi quá 24 giờ (`GV_SUA_TOI_DA_GIO`) không sửa/xóa được. Hết phân công dạy lớp: không gửi mới/không sửa/không
+  gửi bản nháp cho lớp đó, nhưng vẫn xem và xóa được thông báo của mình.
+- Phòng Đào tạo thấy mọi thông báo đã gửi của giảng viên và **chỉ xóa được** (không sửa nội dung thay giảng viên); bản nháp của
+  giảng viên không hiện với Phòng Đào tạo.
+- Sinh viên: nhãn `🏛️ PHÒNG ĐÀO TẠO` / `🧑‍🏫 GIẢNG VIÊN` + tên người gửi, lớp, môn học, thời gian gửi, đã đọc/chưa đọc; bộ lọc
+  Tất cả / Từ Phòng Đào tạo / Từ Giảng viên / Chưa đọc / Đã đọc (`GET /api/thong-bao?nguon=...&chuaDoc=1&daDoc=1`).

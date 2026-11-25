@@ -30,6 +30,13 @@ def da_doc_tat_ca(user):
     return jsonify({"thongBao": "Da danh dau tat ca la da doc", "soChuaDoc": 0})
 
 
+@bp.get("/thong-bao/lop-duoc-gui")
+@role_required(GIANG_VIEN)
+def lop_duoc_gui(user):
+    """Lop giang vien dang day (lay tu thoi khoa bieu) - dung cho danh sach chon lop khi tao thong bao."""
+    return jsonify(svc.lop_giang_day(get_db(), user))
+
+
 @bp.get("/thong-bao/<int:ma>")
 @login_required
 def chi_tiet(user, ma):
@@ -44,27 +51,27 @@ def da_doc(user, ma):
 
 
 @bp.post("/thong-bao")
-@role_required(PHONG_DAO_TAO)
+@role_required(PHONG_DAO_TAO, GIANG_VIEN)
 def tao(user):
     return jsonify(svc.tao(get_db(), user, _body())), 201
 
 
 @bp.put("/thong-bao/<int:ma>")
-@role_required(PHONG_DAO_TAO)
+@role_required(PHONG_DAO_TAO, GIANG_VIEN)
 def sua(user, ma):
     return jsonify(svc.sua(get_db(), user, ma, _body()))
 
 
 @bp.post("/thong-bao/<int:ma>/gui")
-@role_required(PHONG_DAO_TAO)
+@role_required(PHONG_DAO_TAO, GIANG_VIEN)
 def gui(user, ma):
     return jsonify(svc.gui_ban_nhap(get_db(), user, ma))
 
 
 @bp.delete("/thong-bao/<int:ma>")
-@role_required(PHONG_DAO_TAO)
+@role_required(PHONG_DAO_TAO, GIANG_VIEN)
 def xoa(user, ma):
-    svc.xoa(get_db(), ma)
+    svc.xoa(get_db(), user, ma)
     return jsonify({"thongBao": "Da xoa thong bao"})
 
 
@@ -91,28 +98,3 @@ def day_bu(user, ma):
 def thong_bao_chung(user):
     d = _body()
     return jsonify(svc.thong_bao_chung(get_db(), d.get("tieuDe"), d.get("noiDung"), user["maTaiKhoan"]))
-
-
-@bp.get("/giang-vien/thong-bao/lop-duoc-day")
-@role_required(GIANG_VIEN)
-def lop_duoc_day(user):
-    return jsonify(svc.lop_duoc_giang_day(get_db(), user))
-
-
-@bp.post("/giang-vien/thong-bao")
-@role_required(GIANG_VIEN)
-def gv_tao_thong_bao(user):
-    return jsonify(svc.tao_cho_lop(get_db(), user, _body())), 201
-
-
-@bp.put("/giang-vien/thong-bao/<int:ma>")
-@role_required(GIANG_VIEN)
-def gv_sua_thong_bao(user, ma):
-    return jsonify(svc.sua_cua_giang_vien(get_db(), user, ma, _body()))
-
-
-@bp.delete("/giang-vien/thong-bao/<int:ma>")
-@role_required(GIANG_VIEN)
-def gv_xoa_thong_bao(user, ma):
-    svc.xoa_cua_giang_vien(get_db(), user, ma)
-    return jsonify({"thongBao": "Da xoa thong bao"})

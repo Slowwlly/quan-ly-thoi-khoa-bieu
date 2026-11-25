@@ -2,6 +2,7 @@
 Chay:  python -m unittest -v
 """
 import os
+import sqlite3
 import shutil
 import tempfile
 import unittest
@@ -16,6 +17,28 @@ TUAN = '2026-11-02'
 MAU = {}
 
 
+def cred(vai, ma):
+    """(ten dang nhap, mat khau) theo quy tac cua sinh vien / giang vien cu co ma = maSinhVien / maGiangVien."""
+    from tkb.services.dinh_danh import tao_mat_khau
+    con = sqlite3.connect(MAU['path'])
+    try:
+        if vai == 'sv':
+            r = con.execute('SELECT t.tenDangNhap, p.hoTen, p.ngaySinh FROM SinhVien p JOIN TaiKhoan t ON t.maTaiKhoan=p.maTaiKhoan WHERE p.maSinhVien=?', (ma,)).fetchone()
+        else:
+            r = con.execute('SELECT t.tenDangNhap, p.hoTen, p.ngaySinh FROM GiangVien p JOIN TaiKhoan t ON t.maTaiKhoan=p.maTaiKhoan WHERE p.maGiangVien=?', (ma,)).fetchone()
+    finally:
+        con.close()
+    return r[0], tao_mat_khau(r[1], r[2])
+
+
+class _Cred:
+    def __getattr__(self, k):
+        return cred(k[:2].lower(), int(k[2:]))
+
+
+C = _Cred()      # C.sv1 / C.gv1 / C.sv5 ... -> (ten dang nhap, mat khau) theo quy tac
+
+
 def setUpModule():
     # Tao CSDL mau mot lan (bam mat khau kha cham) roi sao chep cho tung test.
     d = tempfile.mkdtemp()
@@ -28,7 +51,7 @@ class BaseTest(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         db = os.path.join(self.tmp, 't.sqlite3')
         shutil.copy(MAU['path'], db)
-        self.app = create_app({'DATABASE': db, 'SEED_TODAY': HOM_NAY, 'TESTING': True})
+        self.app = create_app({'DATABASE': db, 'SEED_TODAY': HOM_NAY, 'HOM_NAY': HOM_NAY, 'TESTING': True})
         self.c = self.app.test_client()
 
     def login(self, ten, mk, client=None):
@@ -43,26 +66,26 @@ class BaseTest(unittest.TestCase):
 
 class TestDangNhap(BaseTest):
     def test_tc01_giang_vien_hop_le(self):
-        r = self.login('gv1', 'gv123'); self.assertEqual(r.status_code, 200); self.assertEqual(r.json['vaiTro'], 'GIANG_VIEN')
+        r = self.login(*C.gv1); self.assertEqual(r.status_code, 200); self.assertEqual(r.json['vaiTro'], 'GIANG_VIEN')
 
     def test_tc02_sinh_vien_hop_le(self):
-        self.assertEqual(self.login('sv1', 'sv123').json['vaiTro'], 'SINH_VIEN')
+        self.assertEqual(self.login(*C.sv1).json['vaiTro'], 'SINH_VIEN')
 
     def test_tc03_phong_dao_tao_hop_le(self):
         self.assertEqual(self.login('pdt', 'pdt123').json['vaiTro'], 'PHONG_DAO_TAO')
 
     def test_tc04_sai_mat_khau(self):
-        self.assertEqual(self.login('gv1', 'sai').status_code, 401)
+        self.assertEqual(self.login(C.gv1[0], 'sai').status_code, 401)
 
     def test_tc05_tai_khoan_khong_ton_tai(self):
         r = self.login('khong_co', 'abc123'); self.assertEqual(r.status_code, 401)
-        self.assertEqual(r.json['loi'], self.login('gv1', 'sai').json['loi'])  # khong lo tai khoan co ton tai hay khong
+        self.assertEqual(r.json['loi'], self.login(C.gv1[0], 'sai').json['loi'])  # khong lo tai khoan co ton tai hay khong
 
     def test_tc06_bo_trong(self):
         self.assertEqual(self.login('', '').status_code, 400)
 
     def test_tc20_dang_xuat(self):
-        self.login('sv1', 'sv123')
+        self.login(*C.sv1)
         self.assertEqual(self.c.get('/api/toi').status_code, 200)
         self.c.post('/api/dang-xuat')
         self.assertEqual(self.c.get('/api/toi').status_code, 401)
@@ -73,38 +96,39 @@ class TestDangNhap(BaseTest):
     def test_mat_khau_luu_dang_bam(self):
         import sqlite3
         con = sqlite3.connect(self.app.config['DATABASE'])
-        mk = con.execute("SELECT matKhau FROM TaiKhoan WHERE tenDangNhap='sv1'").fetchone()[0]
-        self.assertNotEqual(mk, 'sv123'); self.assertNotIn('sv123', mk)
+        ten, mat_khau = C.sv1
+        mk = con.execute("SELECT matKhau FROM TaiKhoan WHERE tenDangNhap=?", (ten,)).fetchone()[0]
+        self.assertNotEqual(mk, mat_khau); self.assertNotIn(mat_khau, mk)
 
     def test_doi_mat_khau(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         self.assertEqual(c.post('/api/doi-mat-khau', json={'matKhauCu': 'sai', 'matKhauMoi': 'moi12345'}).status_code, 400)
-        self.assertEqual(c.post('/api/doi-mat-khau', json={'matKhauCu': 'sv123', 'matKhauMoi': '123'}).status_code, 400)
-        self.assertEqual(c.post('/api/doi-mat-khau', json={'matKhauCu': 'sv123', 'matKhauMoi': 'moi12345'}).status_code, 200)
-        self.assertEqual(self.login('sv1', 'sv123').status_code, 401)
-        self.assertEqual(self.login('sv1', 'moi12345').status_code, 200)
+        self.assertEqual(c.post('/api/doi-mat-khau', json={'matKhauCu': C.sv1[1], 'matKhauMoi': '123'}).status_code, 400)
+        self.assertEqual(c.post('/api/doi-mat-khau', json={'matKhauCu': C.sv1[1], 'matKhauMoi': 'moi12345'}).status_code, 200)
+        self.assertEqual(self.login(*C.sv1).status_code, 401)
+        self.assertEqual(self.login(C.sv1[0], 'moi12345').status_code, 200)
 
 
 class TestXemThoiKhoaBieu(BaseTest):
     def test_tc07_sinh_vien_xem_lich_cua_minh(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         ds = c.get(f'/api/tkb?tuan={TUAN}').json
         self.assertEqual(len(ds), 4)
         self.assertTrue(all(x['tenLop'] == 'CNTT 1' for x in ds))
 
     def test_tc08_giang_vien_xem_lich_giang_day(self):
-        c = self.as_user('gv1', 'gv123')
+        c = self.as_user(*C.gv1)
         ds = c.get(f'/api/tkb?tuan={TUAN}').json
         self.assertTrue(ds); self.assertTrue(all(x['tenGiangVien'] == 'Nguyen Van An' for x in ds))
         for k in ('ngayHoc', 'tietBatDau', 'tenMonHoc', 'tenLop', 'tenPhong'):
             self.assertIn(k, ds[0])
 
     def test_tc09_xem_theo_ngay(self):
-        ds = self.as_user('sv1', 'sv123').get('/api/tkb?ngay=2026-11-02').json
+        ds = self.as_user(*C.sv1).get('/api/tkb?ngay=2026-11-02').json
         self.assertEqual([x['ngayHoc'] for x in ds], ['2026-11-02']); self.assertEqual(ds[0]['tenMonHoc'], 'Ky nghe phan mem')
 
     def test_tc10_chuyen_tuan(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         t1 = c.get('/api/tkb?tuan=2026-11-02').json; t2 = c.get('/api/tkb?tuan=2026-11-09').json
         self.assertTrue(t1 and t2); self.assertNotEqual({x['maTKB'] for x in t1}, {x['maTKB'] for x in t2})
         self.assertTrue(all('2026-11-09' <= x['ngayHoc'] <= '2026-11-15' for x in t2))
@@ -115,14 +139,14 @@ class TestXemThoiKhoaBieu(BaseTest):
         self.assertTrue(ds); self.assertTrue(all(x['maLop'] == 3 for x in ds))
 
     def test_tc12_tim_kiem_co_ket_qua(self):
-        ds = self.as_user('sv1', 'sv123').get('/api/tkb?q=Web').json
+        ds = self.as_user(*C.sv1).get('/api/tkb?q=Web').json
         self.assertTrue(ds); self.assertTrue(all(x['tenMonHoc'] == 'Lap trinh Web' for x in ds))
 
     def test_tc13_tim_kiem_khong_co_ket_qua(self):
-        r = self.as_user('sv1', 'sv123').get('/api/tkb?q=khongtontaixyz'); self.assertEqual(r.status_code, 200); self.assertEqual(r.json, [])
+        r = self.as_user(*C.sv1).get('/api/tkb?q=khongtontaixyz'); self.assertEqual(r.status_code, 200); self.assertEqual(r.json, [])
 
     def test_tc14_chi_tiet_buoi_hoc(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         ma = c.get('/api/tkb?ngay=2026-11-02').json[0]['maTKB']
         r = c.get(f'/api/tkb/{ma}')
         self.assertEqual(r.status_code, 200)
@@ -130,31 +154,31 @@ class TestXemThoiKhoaBieu(BaseTest):
             self.assertIn(k, r.json)
 
     def test_chi_tiet_khong_ton_tai(self):
-        self.assertEqual(self.as_user('sv1', 'sv123').get('/api/tkb/999999').status_code, 404)
+        self.assertEqual(self.as_user(*C.sv1).get('/api/tkb/999999').status_code, 404)
 
     def test_tc15_tuan_khong_co_lich(self):
-        r = self.as_user('sv1', 'sv123').get('/api/tkb?tuan=2030-01-07'); self.assertEqual(r.json, [])
+        r = self.as_user(*C.sv1).get('/api/tkb?tuan=2030-01-07'); self.assertEqual(r.json, [])
 
     def test_ngay_khong_hop_le(self):
-        self.assertEqual(self.as_user('sv1', 'sv123').get('/api/tkb?ngay=31-12-2026').status_code, 400)
+        self.assertEqual(self.as_user(*C.sv1).get('/api/tkb?ngay=31-12-2026').status_code, 400)
 
 
 class TestPhanQuyen(BaseTest):
     def test_tc18_sinh_vien_khong_duoc_tao_tkb(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         self.assertEqual(c.post('/api/tkb', json={}).status_code, 403)
         self.assertEqual(c.delete('/api/tkb/1').status_code, 403)
         self.assertEqual(c.get('/api/danh-muc/sinh-vien').status_code, 403)
         self.assertEqual(c.get('/api/thong-ke').status_code, 403)
 
     def test_tc19_giang_vien_khong_xem_lich_nguoi_khac(self):
-        c = self.as_user('gv1', 'gv123')
+        c = self.as_user(*C.gv1)
         self.assertEqual(c.get('/api/tkb?maGiangVien=2').status_code, 403)
         ma_gv2 = self.as_user('pdt', 'pdt123').get('/api/tkb?maGiangVien=2').json[0]['maTKB']
         self.assertEqual(c.get(f'/api/tkb/{ma_gv2}').status_code, 403)
 
     def test_sinh_vien_khong_xem_lop_khac(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         self.assertEqual(c.get('/api/tkb?maLop=3').status_code, 403)
         ma_lop3 = self.as_user('pdt', 'pdt123').get('/api/tkb?maLop=3').json[0]['maTKB']
         self.assertEqual(c.get(f'/api/tkb/{ma_lop3}').status_code, 403)
@@ -246,7 +270,7 @@ class TestDanhMuc(BaseTest):
         self.assertEqual(r.json['tenLop'], 'CNTT 1'); self.assertEqual(r.json['namTuyenSinh'], 2022)
 
     def test_danh_muc_tim_kiem_va_loc_cho_moi_nguoi(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         self.assertEqual(c.get('/api/danh-muc/lop').status_code, 200)
         self.assertEqual(len(self.as_user('pdt', 'pdt123').get('/api/danh-muc/sinh-vien?q=Hoang Van Em').json), 1)
 
@@ -308,7 +332,7 @@ class TestNhapExcel(BaseTest):
         self.assertEqual(r.status_code, 400)
 
     def test_chi_phong_dao_tao_duoc_nhap_va_tai_mau(self):
-        c = self.as_user('sv1', 'sv123')
+        c = self.as_user(*C.sv1)
         self.assertEqual(self._up(c, 'khoa', [['T\u00ean khoa'], ['Khoa moi']]).status_code, 403)
         self.assertEqual(c.get('/api/nhap-excel/khoa/mau').status_code, 403)
         self.assertEqual(self.as_user('pdt', 'pdt123').get('/api/nhap-excel/sinh-vien/mau').status_code, 200)
@@ -328,7 +352,7 @@ class TestXoaThongBao(BaseTest):
 
     def test_sinh_vien_va_giang_vien_khong_duoc_xoa(self):
         ma = self._tao(self.as_user('pdt', 'pdt123'))
-        for ten, mk in (('sv1', 'sv123'), ('gv1', 'gv123')):
+        for ten, mk in (C.sv1, C.gv1):
             self.assertEqual(self.as_user(ten, mk).delete(f'/api/thong-bao/{ma}').status_code, 403)
         self.assertEqual(self.app.test_client().delete(f'/api/thong-bao/{ma}').status_code, 401)
 
@@ -443,25 +467,33 @@ class TestDangNhapBaVaiTro(BaseTest):
         self.assertEqual(self.login(SV_AN[0], SV_AN[1], self.app.test_client()).status_code, 401)
         self.assertEqual(self.login(SV_AN[0], 'Moi12345', self.app.test_client()).status_code, 200)
 
-    def test_khoi_dong_lai_khong_dat_lai_mat_khau(self):
+    def test_khoi_dong_lai_khong_dat_lai_mat_khau_va_khong_nhan_doi_du_lieu(self):
         self.as_user(*SV_AN).post('/api/doi-mat-khau', json={'matKhauCu': SV_AN[1], 'matKhauMoi': 'Moi12345'})
-        app2 = create_app({'DATABASE': self.app.config['DATABASE'], 'SEED_TODAY': HOM_NAY, 'TESTING': True})
+        dem = lambda: sqlite3.connect(self.app.config['DATABASE']).execute(
+            'SELECT (SELECT count(*) FROM TaiKhoan),(SELECT count(*) FROM SinhVien),(SELECT count(*) FROM GiangVien)').fetchone()
+        truoc = dem()
+        app2 = create_app({'DATABASE': self.app.config['DATABASE'], 'SEED_TODAY': HOM_NAY, 'HOM_NAY': HOM_NAY, 'TESTING': True})
         c = app2.test_client()
         self.assertEqual(c.post('/api/dang-nhap', json={'tenDangNhap': SV_AN[0], 'matKhau': 'Moi12345'}).status_code, 200)
-        self.assertEqual(c.post('/api/dang-nhap', json={'tenDangNhap': 'sv1', 'matKhau': 'sv123'}).status_code, 200)
+        self.assertEqual(dem(), truoc)          # seed khong tao lai sv1/gv1 cu hay sinh vien trung
+        for u, m in (('sv1', 'sv123'), ('gv1', 'gv123')):
+            self.assertEqual(c.post('/api/dang-nhap', json={'tenDangNhap': u, 'matKhau': m}).status_code, 401)
 
-    def test_tai_khoan_cu_khong_co_ngay_sinh_giu_nguyen_va_xu_ly_rieng(self):
+    def test_tai_khoan_cu_da_theo_quy_tac_va_cap_lai_tai_cho_khi_doi_ngay_sinh(self):
         pdt = self.as_user('pdt', 'pdt123')
         sv1 = [x for x in pdt.get('/api/danh-muc/sinh-vien?q=Hoang Van Em').json][0]
-        self.assertIsNone(sv1['ngaySinh']); self.assertEqual(sv1['tenDangNhap'], 'sv1')
-        self.assertEqual(pdt.post(f"/api/danh-muc/sinh-vien/{sv1['maSinhVien']}/cap-tai-khoan", json={}).status_code, 400)
+        self.assertTrue(sv1['ngaySinh']); self.assertEqual(sv1['tenDangNhap'], C.sv1[0])
+        self.assertRegex(sv1['tenDangNhap'], r'^hoangvanem\d{8}$')
+        ma_tk = lambda: sqlite3.connect(self.app.config['DATABASE']).execute(
+            'SELECT maTaiKhoan FROM SinhVien WHERE maSinhVien=?', (sv1['maSinhVien'],)).fetchone()[0]
+        tk_cu = ma_tk()
         pdt.put(f"/api/danh-muc/sinh-vien/{sv1['maSinhVien']}", json={'hoTen': sv1['hoTen'], 'maLop': sv1['maLop'], 'ngaySinh': '2003-04-05'})
-        self.assertEqual(self.login('sv1', 'sv123', self.app.test_client()).status_code, 200)   # them ngay sinh khong doi mat khau
-        r = pdt.post(f"/api/danh-muc/sinh-vien/{sv1['maSinhVien']}/cap-tai-khoan", json={})
-        self.assertEqual(r.status_code, 409)                                                    # can xac nhan ro rang
+        self.assertEqual(self.login(*C.sv1, self.app.test_client()).status_code, 200)       # sua ngay sinh khong tu doi tai khoan
+        self.assertEqual(pdt.post(f"/api/danh-muc/sinh-vien/{sv1['maSinhVien']}/cap-tai-khoan", json={}).status_code, 409)   # can xac nhan
         r = pdt.post(f"/api/danh-muc/sinh-vien/{sv1['maSinhVien']}/cap-tai-khoan", json={'xacNhanDoi': True})
         self.assertEqual(r.json['tenDangNhap'], 'hoangvanem05042003')
-        self.assertEqual(self.login('sv1', 'sv123', self.app.test_client()).status_code, 401)
+        self.assertEqual(ma_tk(), tk_cu)                                                     # doi tai cho, giu maTaiKhoan
+        self.assertEqual(self.login(*C.sv1, self.app.test_client()).status_code, 401)
         self.assertEqual(self.login('hoangvanem05042003', 'Hoangvanem05042003', self.app.test_client()).status_code, 200)
 
     def test_xoa_sinh_vien_xoa_ca_tai_khoan(self):
@@ -632,7 +664,7 @@ class TestXuatThoiKhoaBieu(BaseTest):
             self.assertEqual(sv.get(f'/api/tkb/xuat?dinhDang={f}&maLop=3').status_code, 403)
             self.assertEqual(gv.get(f'/api/tkb/xuat?dinhDang={f}&maGiangVien=1').status_code, 403)
         # sinh vien 1 (lop khac) xuat ra du lieu khac sinh vien mau
-        sv1 = self.as_user('sv1', 'sv123')
+        sv1 = self.as_user(*C.sv1)
         a = self.rows_xlsx(sv1.get(f'/api/tkb/xuat?dinhDang=xlsx&tuan={TUAN}').data)
         self.assertIn('CNTT 1', ' '.join(str(x) for row in a for x in row if x)); self.assertNotIn('CNTT 1 - K24', ' '.join(str(x) for row in a for x in row if x))
 
@@ -697,7 +729,7 @@ class TestThongBaoPhongDaoTao(BaseTest):
         n_lop3 = self.gui(c, doiTuong='LOP', maLop=3).json['maThongBao']
         n_gv1 = self.gui(c, doiTuong='GIANG_VIEN', maGiangVien=gv_nam).json['maThongBao']
         n_gv2 = self.gui(c, doiTuong='GIANG_VIEN', maGiangVien=1).json['maThongBao']
-        sv, sv_khac, gv, gv_khac = (self.as_user(*SV_AN), self.as_user('sv5', 'sv123'), self.as_user(*GV_NAM), self.as_user('gv1', 'gv123'))
+        sv, sv_khac, gv, gv_khac = (self.as_user(*SV_AN), self.as_user(*C.sv5), self.as_user(*GV_NAM), self.as_user(*C.gv1))
         self.assertEqual(self.ids(sv) & {n_sv, n_gv, n_lop, n_lop3, n_gv1, n_gv2}, {n_sv, n_lop})
         self.assertEqual(self.ids(sv_khac) & {n_sv, n_gv, n_lop, n_lop3, n_gv1, n_gv2}, {n_sv, n_lop3})   # sv5 thuoc lop 3
         self.assertEqual(self.ids(gv) & {n_sv, n_gv, n_lop, n_lop3, n_gv1, n_gv2}, {n_gv, n_gv1})
@@ -724,18 +756,26 @@ class TestThongBaoPhongDaoTao(BaseTest):
         self.assertTrue({n['maThongBao']: n for n in sv.get('/api/thong-bao').json}[a]['daDoc'])
         self.assertEqual(self.ids(sv, chuaDoc=1) & {a, b}, {b})
         # trang thai doc la rieng tung nguoi
-        self.assertFalse({n['maThongBao']: n for n in self.as_user('sv5', 'sv123').get('/api/thong-bao').json}[a]['daDoc'])
+        self.assertFalse({n['maThongBao']: n for n in self.as_user(*C.sv5).get('/api/thong-bao').json}[a]['daDoc'])
         self.assertEqual(sv.post('/api/thong-bao/da-doc-tat-ca').json['soChuaDoc'], 0)
         self.assertEqual(sv.get('/api/thong-bao/so-chua-doc').json['soChuaDoc'], 0)
 
-    def test_chi_pdt_tao_sua_xoa(self):
+    def test_chi_pdt_quan_ly_thong_bao_cua_pdt(self):
         n = self.gui(self.pdt()).json['maThongBao']
-        for cl in (self.as_user(*SV_AN), self.as_user(*GV_NAM), self.app.test_client()):
+        # Sinh vien va khach: khong tao/sua/xoa/gui duoc gi
+        for cl in (self.as_user(*SV_AN), self.app.test_client()):
             codes = {cl.post('/api/thong-bao', json={'tieuDe': 'x', 'noiDung': 'y'}).status_code,
                      cl.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y'}).status_code,
                      cl.delete(f'/api/thong-bao/{n}').status_code, cl.post(f'/api/thong-bao/{n}/gui').status_code,
                      cl.post('/api/thong-bao/chung', json={'tieuDe': 'x', 'noiDung': 'y'}).status_code}
             self.assertTrue(codes <= {401, 403}, codes)
+        # Giang vien: co the tao thong bao cho lop minh day (xem TestThongBaoGiangVien) nhung KHONG dung vao thong bao PDT
+        gv = self.as_user(*GV_NAM)
+        for r in (gv.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y', 'maLop': 1}),
+                  gv.delete(f'/api/thong-bao/{n}'), gv.post(f'/api/thong-bao/{n}/gui'),
+                  gv.post('/api/thong-bao/chung', json={'tieuDe': 'x', 'noiDung': 'y'})):
+            self.assertEqual(r.status_code, 403)
+        self.assertEqual(gv.post('/api/thong-bao', json={'tieuDe': 'x', 'noiDung': 'y'}).status_code, 400)   # thieu lop
         self.assertIn(n, self.ids(self.pdt()))
 
     def test_sua_xoa_va_xem_chi_tiet(self):
@@ -761,14 +801,14 @@ class TestThongBaoPhongDaoTao(BaseTest):
         self.assertEqual(c.post(f"/api/thong-bao/{n['maThongBao']}/gui").status_code, 400)
 
     def test_thong_bao_tu_dong_va_cu_van_hoat_dong(self):
-        c = self.pdt(); sv = self.as_user('sv1', 'sv123'); gv = self.as_user('gv1', 'gv123')
+        c = self.pdt(); sv = self.as_user(*C.sv1); gv = self.as_user(*C.gv1)
         ma = c.get('/api/tkb?ngay=2026-11-02&maLop=1').json[0]['maTKB']
         self.assertEqual(c.post(f'/api/tkb/{ma}/nghi-hoc', json={'lyDo': 'Bao'}).status_code, 200)
         self.assertEqual(c.post('/api/thong-bao/chung', json={'tieuDe': 'Chung', 'noiDung': 'ND'}).status_code, 200)
         for cl in (sv, gv):
             ds = cl.get('/api/thong-bao').json
             self.assertIn('NGHI', {n['loai'] for n in ds}); self.assertIn('Chung', {n['tieuDe'] for n in ds})
-        self.assertNotIn('NGHI', {n['loai'] for n in self.as_user('sv5', 'sv123').get('/api/thong-bao').json})
+        self.assertNotIn('NGHI', {n['loai'] for n in self.as_user(*C.sv5).get('/api/thong-bao').json})
 
     def test_pdt_khong_co_so_chua_doc_va_khong_danh_dau_doc(self):
         c = self.pdt()
@@ -785,60 +825,283 @@ class TestXacThucThamSo(BaseTest):
                 self.assertEqual(getattr(cl, m)(u).status_code, 403, (m, u))
 
 
+class TestThongBaoGiangVien(BaseTest):
+    """Giang vien gui thong bao cho lop minh day; phan biet nguon gui PHONG_DAO_TAO / GIANG_VIEN."""
+    GV_HA = ('phamthithuha03111988', 'Phamthithuha03111988')      # day lop CNTT 2 - K24 (khac lop cua Le Hoang Nam)
+
+    def setUp(self):
+        super().setUp()
+        self.nam, self.ha, self.pdt = self.as_user(*GV_NAM), self.as_user(*self.GV_HA), self.as_user('pdt', 'pdt123')
+        self.sv = self.as_user(*SV_AN)                                       # lop CNTT 1 - K24 (Nam day)
+        self.lop_nam = {x['tenLop']: x for x in self.nam.get('/api/thong-bao/lop-duoc-gui').json}
+        self.lop_ha = {x['tenLop']: x for x in self.ha.get('/api/thong-bao/lop-duoc-gui').json}
+        self.l1 = self.lop_nam['CNTT 1 - K24']['maLop']                     # lop cua Nam
+        self.l2 = self.lop_ha['CNTT 2 - K24']['maLop']                      # lop cua Ha, Nam khong day
+        sv2 = self.pdt.get(f'/api/danh-muc/sinh-vien?maLop={self.l2}').json[0]
+        con = sqlite3.connect(self.app.config['DATABASE'])
+        tk = con.execute('SELECT tenDangNhap FROM TaiKhoan t JOIN SinhVien s ON s.maTaiKhoan=t.maTaiKhoan WHERE s.maSinhVien=?',
+                         (sv2['maSinhVien'],)).fetchone()[0]
+        con.close()
+        from tkb.services.dinh_danh import tao_mat_khau
+        self.sv2 = self.as_user(tk, tao_mat_khau(sv2['hoTen'], sv2['ngaySinh']))   # sinh vien lop CNTT 2 - K24
+
+    def gui(self, c, **kw):
+        d = {'tieuDe': 'Nhac hoc', 'noiDung': 'Mang tai lieu', 'loai': 'NHAC_LICH', 'maLop': self.l1}
+        d.update(kw); return c.post('/api/thong-bao', json=d)
+
+    def ids(self, c, **q):
+        return {n['maThongBao'] for n in c.get('/api/thong-bao', query_string=q).json}
+
+    def db(self):
+        return sqlite3.connect(self.app.config['DATABASE'])
+
+    # ---- lop duoc phep gui lay tu thoi khoa bieu ----
+    def test_danh_sach_lop_lay_tu_thoi_khoa_bieu(self):
+        buoi = self.nam.get('/api/tkb?tuNgay=2026-10-05&denNgay=2026-12-31').json
+        self.assertTrue(buoi)
+        self.assertEqual({x['maLop'] for x in self.lop_nam.values()}, {b['maLop'] for b in buoi})
+        self.assertNotIn('CNTT 2 - K24', self.lop_nam)
+        mon = {m['tenMonHoc'] for m in self.lop_nam['CNTT 1 - K24']['monHoc']}
+        self.assertEqual(mon, {b['tenMonHoc'] for b in buoi if b['maLop'] == self.l1})
+
+    def test_chi_giang_vien_lay_duoc_danh_sach_lop(self):
+        for cl in (self.sv, self.pdt):
+            self.assertEqual(cl.get('/api/thong-bao/lop-duoc-gui').status_code, 403)
+        self.assertEqual(self.app.test_client().get('/api/thong-bao/lop-duoc-gui').status_code, 401)
+
+    # ---- gui thanh cong + hien thi dung nguon ----
+    def test_gv_gui_cho_lop_dang_day_sv_lop_do_nhan_duoc(self):
+        mon = self.lop_nam['CNTT 1 - K24']['monHoc'][0]
+        r = self.gui(self.nam, maMonHoc=mon['maMonHoc']); self.assertEqual(r.status_code, 201, r.json)
+        n = r.json
+        self.assertEqual((n['sender_type'], n['nguonGui'], n['nguoiGui'], n['tenLop'], n['tenMonHoc'], n['trangThai']),
+                         ('GIANG_VIEN', 'GI\u1ea2NG VI\u00caN', 'L\u00ea Ho\u00e0ng Nam', 'CNTT 1 - K24', mon['tenMonHoc'], 'DA_GUI'))
+        self.assertTrue(n['thoiGianGui']); self.assertTrue(n['ngayTao']); self.assertEqual(n['tenLoai'], 'Nh\u1eafc l\u1ecbch h\u1ecdc')
+        row = self.db().execute('SELECT sender_type,maGiangVienGui,doiTuong,maLop,tenNguoiGui FROM ThongBao WHERE maThongBao=?',
+                                (n['maThongBao'],)).fetchone()
+        self.assertEqual(row, ('GIANG_VIEN', self.nam.get('/api/toi').json['maGiangVien'], 'LOP', self.l1, 'L\u00ea Ho\u00e0ng Nam'))
+        ds = {x['maThongBao']: x for x in self.sv.get('/api/thong-bao').json}
+        self.assertEqual((ds[n['maThongBao']]['nguonGui'], ds[n['maThongBao']]['nguoiGui']), ('GI\u1ea2NG VI\u00caN', 'L\u00ea Ho\u00e0ng Nam'))
+        self.assertNotIn('maGiangVienGui', ds[n['maThongBao']]); self.assertNotIn('maNguoiGui', ds[n['maThongBao']])
+
+    def test_sv_lop_khac_khong_thay_thong_bao_rieng_cua_lop(self):
+        n = self.gui(self.nam).json['maThongBao']
+        self.assertIn(n, self.ids(self.sv)); self.assertNotIn(n, self.ids(self.sv2))
+        self.assertEqual(self.sv2.get(f'/api/thong-bao/{n}').status_code, 403)
+        self.assertEqual(self.sv2.post(f'/api/thong-bao/{n}/da-doc').status_code, 403)
+        self.assertNotIn(n, self.ids(self.ha)); self.assertNotIn(n, self.ids(self.nam))      # khong vao hop thu giang vien
+
+    # ---- backend chan gui sai lop / sai doi tuong ----
+    def test_gv_khong_gui_duoc_lop_khong_day_hoac_lop_tuy_y(self):
+        for ma in (self.l2, 999999, 1):
+            r = self.gui(self.nam, maLop=ma); self.assertEqual(r.status_code, 403, ma)
+        self.assertEqual(self.gui(self.nam, maLop='abc').status_code, 400)
+        self.assertEqual(self.gui(self.nam, maLop=None).status_code, 400)
+        self.assertEqual(self.db().execute("SELECT count(*) FROM ThongBao WHERE sender_type='GIANG_VIEN'").fetchone()[0], 0)
+
+    def test_gv_khong_gui_toan_truong_hay_cho_giang_vien_khac(self):
+        gv_khac = self.ha.get('/api/toi').json['maGiangVien']
+        for kw in ({'doiTuong': 'TAT_CA_SV'}, {'doiTuong': 'TAT_CA_GV'}, {'doiTuong': 'TAT_CA'},
+                   {'doiTuong': 'GIANG_VIEN', 'maGiangVien': gv_khac}, {'maGiangVien': gv_khac}):
+            self.assertEqual(self.gui(self.nam, **kw).status_code, 403, kw)
+
+    def test_gv_khong_gia_mao_nguon_gui_va_loai_cua_phong_dao_tao(self):
+        n = self.gui(self.nam, sender_type='PHONG_DAO_TAO', maGiangVienGui=999, tenNguoiGui='Phong Dao Tao', maNguoiGui=1).json
+        self.assertEqual((n['sender_type'], n['nguoiGui']), ('GIANG_VIEN', 'L\u00ea Ho\u00e0ng Nam'))
+        for loai in ('QUAN_TRONG', 'DOI_LICH', 'DOI_PHONG', 'CHUNG', 'XYZ'):
+            self.assertEqual(self.gui(self.nam, loai=loai).status_code, 400, loai)
+        for loai in ('GV_CHUNG', 'NHAC_LICH', 'DOI_NOI_DUNG', 'TAI_LIEU', 'KIEM_TRA', 'NGHI', 'DAY_BU', 'KHAC'):
+            self.assertEqual(self.gui(self.nam, loai=loai).status_code, 201, loai)
+        mon_ha = self.lop_ha['CNTT 2 - K24']['monHoc'][0]['maMonHoc']
+        self.assertEqual(self.gui(self.nam, maMonHoc=mon_ha).status_code, 400)               # mon khong day o lop nay
+
+    def test_csdl_chan_thong_bao_giang_vien_khong_gui_cho_lop(self):
+        con = self.db()
+        with self.assertRaises(sqlite3.IntegrityError):
+            con.execute("INSERT INTO ThongBao(loai,tieuDe,noiDung,doiTuong,sender_type) VALUES ('KHAC','x','y','TAT_CA_SV','GIANG_VIEN')")
+        with self.assertRaises(sqlite3.IntegrityError):
+            con.execute("INSERT INTO ThongBao(loai,tieuDe,noiDung,doiTuong,sender_type) VALUES ('KHAC','x','y','TAT_CA','NGUOI_LA')")
+
+    # ---- quyen sua / xoa ----
+    def test_gv_sua_xoa_thong_bao_cua_minh(self):
+        n = self.gui(self.nam).json['maThongBao']
+        r = self.nam.put(f'/api/thong-bao/{n}', json={'tieuDe': 'Moi', 'noiDung': 'ND moi', 'loai': 'KIEM_TRA', 'maLop': self.l1})
+        self.assertEqual((r.status_code, r.json['tieuDe'], r.json['loai']), (200, 'Moi', 'KIEM_TRA')); self.assertTrue(r.json['ngayCapNhat'])
+        self.assertEqual(self.sv.get(f'/api/thong-bao/{n}').json['noiDung'], 'ND moi')
+        self.assertEqual(self.nam.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y', 'maLop': self.l2}).status_code, 403)
+        self.assertEqual(self.nam.delete(f'/api/thong-bao/{n}').status_code, 200)
+        self.assertEqual(self.nam.get(f'/api/thong-bao/{n}').status_code, 404)
+
+    def test_gv_khong_sua_xoa_thong_bao_cua_gv_khac(self):
+        n = self.gui(self.nam).json['maThongBao']
+        for cl in (self.ha,):
+            self.assertEqual(cl.put(f'/api/thong-bao/{n}', json={'tieuDe': 'X', 'noiDung': 'Y', 'maLop': self.l2}).status_code, 403)
+            self.assertEqual(cl.delete(f'/api/thong-bao/{n}').status_code, 403)
+            self.assertEqual(cl.post(f'/api/thong-bao/{n}/gui').status_code, 403)
+        self.assertEqual(self.sv.get(f'/api/thong-bao/{n}').json['tieuDe'], 'Nhac hoc')
+
+    def test_gv_khong_sua_xoa_thong_bao_cua_phong_dao_tao(self):
+        p = self.pdt.post('/api/thong-bao', json={'tieuDe': 'Cua PDT', 'noiDung': 'ND', 'loai': 'QUAN_TRONG', 'doiTuong': 'TAT_CA_SV'}).json
+        self.assertEqual(p['sender_type'], 'PHONG_DAO_TAO'); self.assertEqual(p['nguonGui'], 'PH\u00d2NG \u0110\u00c0O T\u1ea0O')
+        for cl in (self.nam, self.ha):
+            self.assertEqual(cl.put(f"/api/thong-bao/{p['maThongBao']}", json={'tieuDe': 'Hack', 'noiDung': 'Hack', 'maLop': self.l1}).status_code, 403)
+            self.assertEqual(cl.delete(f"/api/thong-bao/{p['maThongBao']}").status_code, 403)
+        self.assertEqual(self.sv.get(f"/api/thong-bao/{p['maThongBao']}").json['tieuDe'], 'Cua PDT')
+        # thong bao cua giang vien khong lam mat thong bao cua Phong Dao tao
+        self.gui(self.nam); self.assertIn(p['maThongBao'], self.ids(self.sv))
+
+    def test_sinh_vien_va_khach_khong_tao_sua_xoa(self):
+        n = self.gui(self.nam).json['maThongBao']
+        for cl, ok in ((self.sv, 403), (self.app.test_client(), 401)):
+            self.assertEqual(cl.post('/api/thong-bao', json={'tieuDe': 'x', 'noiDung': 'y', 'maLop': self.l1}).status_code, ok)
+            self.assertEqual(cl.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y'}).status_code, ok)
+            self.assertEqual(cl.delete(f'/api/thong-bao/{n}').status_code, ok)
+            self.assertEqual(cl.post(f'/api/thong-bao/{n}/gui').status_code, ok)
+
+    def test_phong_dao_tao_quan_ly_thong_bao_toan_he_thong(self):
+        n = self.gui(self.nam).json['maThongBao']
+        ds = {x['maThongBao']: x for x in self.pdt.get('/api/thong-bao').json}
+        self.assertEqual((ds[n]['sender_type'], ds[n]['nguoiGui'], ds[n]['quyen']['xoa'], ds[n]['quyen']['sua']), ('GIANG_VIEN', 'L\u00ea Ho\u00e0ng Nam', True, False))
+        self.assertEqual(self.pdt.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y'}).status_code, 403)   # khong dat loi vao mieng giang vien
+        self.assertEqual(self.pdt.delete(f'/api/thong-bao/{n}').status_code, 200)
+        self.assertNotIn(n, self.ids(self.sv))
+        self.assertEqual(self.pdt.post('/api/thong-bao', json={'tieuDe': 'a', 'noiDung': 'b', 'loai': 'CHUNG'}).status_code, 201)
+
+    # ---- khoa sau 24 gio, het phan cong, ban nhap, snapshot ----
+    def test_thong_bao_bi_khoa_sau_24_gio(self):
+        n = self.gui(self.nam).json['maThongBao']
+        con = self.db(); con.execute("UPDATE ThongBao SET thoiGianGui=datetime('now','localtime','-2 days') WHERE maThongBao=?", (n,)); con.commit()
+        self.assertTrue(self.nam.get(f'/api/thong-bao/{n}').json['daKhoa'])
+        self.assertEqual(self.nam.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y', 'maLop': self.l1}).status_code, 409)
+        self.assertEqual(self.nam.delete(f'/api/thong-bao/{n}').status_code, 409)
+        self.assertEqual(self.pdt.delete(f'/api/thong-bao/{n}').status_code, 200)             # Phong Dao tao van quan ly duoc
+
+    def test_het_phan_cong_khong_gui_moi_nhung_van_xem_va_xoa_duoc(self):
+        n = self.gui(self.nam).json['maThongBao']
+        nhap = self.gui(self.nam, guiNgay=False).json['maThongBao']
+        con = self.db(); con.execute('DELETE FROM ThoiKhoaBieu WHERE maGiangVien=? AND maLop=?',
+                                     (self.nam.get('/api/toi').json['maGiangVien'], self.l1)); con.commit()
+        self.assertNotIn('CNTT 1 - K24', {x['tenLop'] for x in self.nam.get('/api/thong-bao/lop-duoc-gui').json})
+        self.assertEqual(self.gui(self.nam).status_code, 403)                                 # khong gui moi
+        self.assertEqual(self.nam.put(f'/api/thong-bao/{n}', json={'tieuDe': 'x', 'noiDung': 'y', 'maLop': self.l1}).status_code, 403)
+        self.assertEqual(self.nam.post(f'/api/thong-bao/{nhap}/gui').status_code, 403)         # khong gui ban nhap
+        self.assertEqual(self.nam.get(f'/api/thong-bao/{n}').status_code, 200)                 # van xem lich su
+        self.assertIn(n, self.ids(self.nam, daGui=1)); self.assertEqual(self.nam.delete(f'/api/thong-bao/{n}').status_code, 200)
+
+    def test_ban_nhap_chi_chu_so_huu_thay_va_gui_duoc(self):
+        n = self.gui(self.nam, guiNgay=False).json
+        self.assertEqual((n['trangThai'], n['thoiGianGui']), ('NHAP', None))
+        self.assertNotIn(n['maThongBao'], self.ids(self.sv)); self.assertNotIn(n['maThongBao'], self.ids(self.pdt))
+        self.assertEqual(self.sv.get(f"/api/thong-bao/{n['maThongBao']}").status_code, 403)
+        self.assertEqual(self.pdt.get(f"/api/thong-bao/{n['maThongBao']}").status_code, 403)
+        self.assertIn(n['maThongBao'], self.ids(self.nam, daGui=1))
+        r = self.nam.post(f"/api/thong-bao/{n['maThongBao']}/gui"); self.assertEqual((r.status_code, r.json['trangThai']), (200, 'DA_GUI'))
+        self.assertIn(n['maThongBao'], self.ids(self.sv))
+
+    def test_giu_ten_nguoi_gui_va_mon_hoc_tai_thoi_diem_gui(self):
+        mon = self.lop_nam['CNTT 1 - K24']['monHoc'][0]
+        n = self.gui(self.nam, maMonHoc=mon['maMonHoc']).json['maThongBao']
+        con = self.db(); con.execute("UPDATE GiangVien SET hoTen='Ten Moi Sau Khi Gui' WHERE hoTen=?", ('L\u00ea Ho\u00e0ng Nam',))
+        con.execute('UPDATE MonHoc SET tenMonHoc=? WHERE maMonHoc=?', ('Ten mon doi', mon['maMonHoc'])); con.commit()
+        d = self.sv.get(f'/api/thong-bao/{n}').json
+        self.assertEqual((d['nguoiGui'], d['tenMonHoc']), ('L\u00ea Ho\u00e0ng Nam', mon['tenMonHoc']))
+
+    def test_hop_thu_giang_vien_khong_lan_thong_bao_da_gui(self):
+        n = self.gui(self.nam).json['maThongBao']
+        self.assertNotIn(n, self.ids(self.nam)); self.assertIn(n, self.ids(self.nam, daGui=1))
+        self.assertEqual(self.nam.get('/api/thong-bao/so-chua-doc').json['soChuaDoc'], self.nam.get('/api/thong-bao/so-chua-doc').json['soChuaDoc'])
+        self.assertEqual(self.sv.get('/api/thong-bao', query_string={'daGui': 1}).status_code, 403)
+
+    # ---- sinh vien: bo loc nguon, da doc/chua doc, luu sau dang xuat ----
+    def test_bo_loc_nguon_gui_va_trang_thai_doc(self):
+        lop = self.sv.get('/api/toi').json['maLop']
+        pdt_lop = self.pdt.post('/api/thong-bao', json={'tieuDe': 'PDT lop', 'noiDung': 'a', 'loai': 'CHUNG', 'doiTuong': 'LOP', 'maLop': lop}).json['maThongBao']
+        pdt_all = self.pdt.post('/api/thong-bao', json={'tieuDe': 'PDT all', 'noiDung': 'a', 'loai': 'CHUNG', 'doiTuong': 'TAT_CA_SV'}).json['maThongBao']
+        gv1 = self.gui(self.nam, tieuDe='GV 1').json['maThongBao']; gv2 = self.gui(self.nam, tieuDe='GV 2').json['maThongBao']
+        self.sv.post(f'/api/thong-bao/{pdt_all}/da-doc'); self.sv.post(f'/api/thong-bao/{gv1}/da-doc')
+        tat_ca = {x['maThongBao']: x for x in self.sv.get('/api/thong-bao').json}
+        for nguon in ('PHONG_DAO_TAO', 'GIANG_VIEN'):
+            got = self.ids(self.sv, nguon=nguon)
+            self.assertEqual(got, {k for k, v in tat_ca.items() if v['sender_type'] == nguon}, nguon)
+        self.assertTrue({pdt_lop, pdt_all} <= self.ids(self.sv, nguon='PHONG_DAO_TAO')); self.assertTrue({gv1, gv2} <= self.ids(self.sv, nguon='GIANG_VIEN'))
+        self.assertEqual(self.ids(self.sv, chuaDoc=1), {k for k, v in tat_ca.items() if not v['daDoc']})
+        self.assertEqual(self.ids(self.sv, daDoc=1), {k for k, v in tat_ca.items() if v['daDoc']})
+        self.assertEqual(self.ids(self.sv, daDoc=1) & {pdt_all, gv1}, {pdt_all, gv1}); self.assertFalse({gv2, pdt_lop} & self.ids(self.sv, daDoc=1))
+        self.assertEqual(self.ids(self.sv, nguon='GIANG_VIEN', chuaDoc=1) & {gv1, gv2}, {gv2})
+        self.assertEqual(self.sv.get('/api/thong-bao', query_string={'nguon': 'HACK'}).status_code, 400)
+
+    def test_da_doc_luu_trong_csdl_sau_khi_dang_xuat_dang_nhap_lai(self):
+        n = self.gui(self.nam).json['maThongBao']
+        before = self.sv.get('/api/thong-bao/so-chua-doc').json['soChuaDoc']
+        self.assertEqual(self.sv.post(f'/api/thong-bao/{n}/da-doc').json['soChuaDoc'], before - 1)
+        self.sv.post('/api/dang-xuat')
+        sv = self.as_user(*SV_AN)
+        self.assertTrue({x['maThongBao']: x for x in sv.get('/api/thong-bao').json}[n]['daDoc'])
+        self.assertEqual(sv.get('/api/thong-bao/so-chua-doc').json['soChuaDoc'], before - 1)
+        self.assertEqual(self.db().execute('SELECT count(*) FROM ThongBaoDaDoc WHERE maThongBao=?', (n,)).fetchone()[0], 1)
+
+    def test_thong_bao_cu_cua_pdt_van_dung_nhan_phong_dao_tao(self):
+        ma = self.pdt.get('/api/tkb?ngay=2026-11-02&maLop=1').json[0]['maTKB']
+        self.assertEqual(self.pdt.post(f'/api/tkb/{ma}/nghi-hoc', json={'lyDo': 'Bao'}).status_code, 200)
+        self.assertEqual(self.pdt.post('/api/thong-bao/chung', json={'tieuDe': 'Chung', 'noiDung': 'ND'}).status_code, 200)
+        sv1 = self.as_user(*C.sv1)
+        ds = sv1.get('/api/thong-bao').json
+        self.assertTrue(ds); self.assertEqual({x['sender_type'] for x in ds}, {'PHONG_DAO_TAO'})
+        nghi = [x for x in ds if x['loai'] == 'NGHI'][0]
+        self.assertEqual((nghi['nguonGui'], nghi['nguoiGui']), ('PH\u00d2NG \u0110\u00c0O T\u1ea0O', 'Ph\u00f2ng \u0110\u00e0o t\u1ea1o')); self.assertTrue(nghi['tenMonHoc'])
+
+
+class TestQuyTacThongNhatTaiKhoanCu(BaseTest):
+    """Moi tai khoan sinh vien / giang vien (cu va moi) theo CUNG quy tac ho ten + ngay sinh."""
+
+    def nguoi(self):
+        con = sqlite3.connect(self.app.config['DATABASE']); con.row_factory = sqlite3.Row
+        rows = con.execute("""SELECT 'SINH_VIEN' vt, p.hoTen, p.ngaySinh, t.maTaiKhoan, t.tenDangNhap, t.matKhau, t.phaiDoiMatKhau
+                              FROM SinhVien p JOIN TaiKhoan t ON t.maTaiKhoan=p.maTaiKhoan
+                              UNION ALL SELECT 'GIANG_VIEN', p.hoTen, p.ngaySinh, t.maTaiKhoan, t.tenDangNhap, t.matKhau, t.phaiDoiMatKhau
+                              FROM GiangVien p JOIN TaiKhoan t ON t.maTaiKhoan=p.maTaiKhoan""").fetchall()
+        return con, rows
+
+    def test_moi_tai_khoan_sv_gv_dung_quy_tac_va_mat_khau_bam(self):
+        from werkzeug.security import check_password_hash
+        from tkb.services.dinh_danh import tao_mat_khau, tao_ten_dang_nhap
+        import re
+        con, rows = self.nguoi()
+        self.assertGreaterEqual(len(rows), 240)
+        for r in rows:
+            self.assertTrue(r['ngaySinh'], r['hoTen'])
+            goc = tao_ten_dang_nhap(r['hoTen'], r['ngaySinh'])
+            self.assertRegex(r['tenDangNhap'], '^' + goc + r'(_\d+)?$')
+            self.assertRegex(r['tenDangNhap'], r'^[a-z0-9_]+$')                  # thuong, khong dau, khong cach
+            mk = tao_mat_khau(r['hoTen'], r['ngaySinh'])
+            self.assertRegex(mk, r'^[A-Z][a-z0-9]+$')                             # chi viet hoa chu dau, khong dau/cach
+            self.assertEqual(mk.lower(), goc)                                      # giong ten dang nhap, chi khac chu hoa dau
+            self.assertTrue(r['matKhau'].startswith(('scrypt:', 'pbkdf2:')))      # luu dang bam
+            self.assertTrue(check_password_hash(r['matKhau'], mk), r['tenDangNhap'])
+            self.assertEqual(r['phaiDoiMatKhau'], 1)
+
+    def test_tai_khoan_cu_cung_ham_voi_tai_khoan_moi(self):
+        from tkb.services.tai_khoan import thong_tin_theo_quy_tac
+        con, rows = self.nguoi()
+        for r in rows[:60]:
+            ten, mk, goc, n = thong_tin_theo_quy_tac(con, r['hoTen'], r['ngaySinh'], bo_qua_ma_tk=r['maTaiKhoan'])
+            self.assertEqual(ten, r['tenDangNhap'])
+
+    def test_dang_nhap_bang_tai_khoan_cu_theo_quy_tac_va_tu_choi_mat_khau_cu(self):
+        for ma in (1, 6, 7, 20):
+            self.assertEqual(self.login(*C.__getattr__(f'sv{ma}'), self.app.test_client()).status_code, 200)
+        for ma in (1, 4):
+            self.assertEqual(self.login(*C.__getattr__(f'gv{ma}'), self.app.test_client()).json['vaiTro'], 'GIANG_VIEN')
+        for u, m in (('sv1', 'sv123'), ('sv12', 'sv123'), ('gv1', 'gv123'), ('gv3', 'gv123')):
+            self.assertEqual(self.login(u, m, self.app.test_client()).status_code, 401, u)
+        self.assertEqual(self.login('pdt', 'pdt123', self.app.test_client()).status_code, 200)     # Phong Dao tao khong thuoc pham vi
+
+    def test_ten_co_dau_va_chu_d_o_tai_khoan_cu(self):
+        con, rows = self.nguoi()
+        r = next(x for x in rows if x['hoTen'] == 'Nguyễn Đức Anh')
+        self.assertTrue(r['tenDangNhap'].startswith('nguyenducanh'))
+        self.assertEqual(self.login(r['tenDangNhap'], 'Nguyenducanh' + r['tenDangNhap'][12:20], self.app.test_client()).status_code, 200)
+
+
 if __name__ == '__main__':
     unittest.main()
-
-
-class TestThongBaoGiangVien(BaseTest):
-    def test_giang_vien_chi_lay_lop_co_lich_day_va_gui_duoc(self):
-        gv = self.as_user('gv1', 'gv123')
-        lop = gv.get('/api/giang-vien/thong-bao/lop-duoc-day')
-        self.assertEqual(lop.status_code, 200)
-        self.assertTrue(lop.json)
-        ma_lop = lop.json[0]['maLop']
-        r = gv.post('/api/giang-vien/thong-bao', json={
-            'maLop': ma_lop, 'tieuDe': 'Nhac lich hoc',
-            'noiDung': 'Sinh vien chuan bi bai truoc khi den lop',
-            'loai': 'CHUNG'
-        })
-        self.assertEqual(r.status_code, 201)
-        self.assertEqual(r.json['senderType'], 'GIANG_VIEN')
-        self.assertEqual(r.json['nguoiGui'], 'Nguyen Van An')
-
-    def test_giang_vien_khong_gui_duoc_cho_lop_khong_co_lich(self):
-        gv = self.as_user('gv1', 'gv123')
-        r = gv.post('/api/giang-vien/thong-bao', json={
-            'maLop': 999999, 'tieuDe': 'Thong bao',
-            'noiDung': 'Noi dung', 'loai': 'CHUNG'
-        })
-        self.assertEqual(r.status_code, 403)
-
-    def test_sinh_vien_nhan_thong_bao_giang_vien_va_loc_nguon(self):
-        gv = self.as_user('gv1', 'gv123')
-        lop = gv.get('/api/giang-vien/thong-bao/lop-duoc-day').json
-        lop_sv = self.as_user('sv1', 'sv123').get('/api/toi').json
-        # Tai khoan sv1 thuoc CNTT 1; chi gui neu GV1 duoc phan cong lop nay.
-        item = next((x for x in lop if x['maLop'] == lop_sv['maLop']), None)
-        if item is None:
-            self.skipTest('Giang vien mau khong duoc phan cong lop cua sinh vien mau')
-        gv.post('/api/giang-vien/thong-bao', json={
-            'maLop': item['maLop'], 'tieuDe': 'Thong bao lop',
-            'noiDung': 'Noi dung kiem thu', 'loai': 'CHUNG'
-        })
-        sv = self.as_user('sv1', 'sv123')
-        ds = sv.get('/api/thong-bao?senderType=GIANG_VIEN').json
-        self.assertTrue(any(x['tieuDe'] == 'Thong bao lop' and x['nguonGui'] == 'GIANG_VIEN' for x in ds))
-
-    def test_sinh_vien_khong_xem_duoc_thong_bao_lop_khac(self):
-        gv = self.as_user('gv1', 'gv123')
-        lop = gv.get('/api/giang-vien/thong-bao/lop-duoc-day').json
-        lop_sv = self.as_user('sv1', 'sv123').get('/api/toi').json['maLop']
-        khac = next((x for x in lop if x['maLop'] != lop_sv), None)
-        if khac is None:
-            self.skipTest('Khong co lop giang vien day khac lop sinh vien mau')
-        gv.post('/api/giang-vien/thong-bao', json={
-            'maLop': khac['maLop'], 'tieuDe': 'Thong bao rieng',
-            'noiDung': 'Khong danh cho lop sinh vien nay', 'loai': 'CHUNG'
-        })
-        sv = self.as_user('sv1', 'sv123')
-        self.assertFalse(any(x['tieuDe'] == 'Thong bao rieng' for x in sv.get('/api/thong-bao').json))
